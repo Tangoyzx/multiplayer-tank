@@ -26,10 +26,13 @@ export class Player {
   send(msg: ServerMessage): void {
     if (this.ws && this.ws.readyState === this.ws.OPEN) {
       try {
+        console.log(`[server] 发送消息: player=${this.id} t=${msg.t}`);
         this.ws.send(JSON.stringify(msg));
-      } catch {
-        /* 发送失败忽略 */
+      } catch (e) {
+        console.log(`[server] 发送失败: player=${this.id} err=${(e as Error).message}`);
       }
+    } else {
+      console.log(`[server] 发送跳过(连接未就绪): player=${this.id} t=${msg.t} readyState=${this.ws?.readyState}`);
     }
   }
 

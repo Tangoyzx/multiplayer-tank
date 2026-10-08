@@ -85,16 +85,20 @@ const wss = new WebSocketServer({ server, path: "/ws", maxPayload: NET.MAX_MESSA
 wss.on("connection", (ws, req) => {
   const ip = (req.socket.remoteAddress ?? "unknown").replace(/^::ffff:/, "");
   const player = new Player("p_" + ++playerSeq, ws, ip);
+  console.log(`[server] WS 连接建立: player=${player.id} ip=${ip}`);
 
   ws.on("message", (raw) => {
+    console.log(`[server] 收到消息: player=${player.id} raw=${raw.toString()}`);
     if (!player.allowMessage()) {
+      console.log(`[server] 限流拒绝: player=${player.id}`);
       ws.close(1008, "rate limited");
       return;
     }
     let msg: ClientMessage;
     try {
       msg = JSON.parse(raw.toString());
-    } catch {
+    } catch (e) {
+      console.log(`[server] JSON 解析失败: player=${player.id} err=${(e as Error).message}`);
       ws.close(1003, "invalid json");
       return;
     }
@@ -102,6 +106,7 @@ wss.on("connection", (ws, req) => {
   });
 
   ws.on("close", () => {
+    console.log(`[server] WS 连接关闭: player=${player.id}`);
     player.alive = false;
     player.ws = null;
     matchmaker.dequeue(player);
@@ -112,31 +117,42 @@ wss.on("connection", (ws, req) => {
     }
   });
 
-  ws.on("error", () => {
-    /* ignore */
+  ws.on("error", (e) => {
+    console.log(`[server] WS 错误: player=${player.id} err=${(e as Error).message}`);
   });
 });
 
 // ---- 消息处理 ----
 
 function handleMessage(player: Player, msg: ClientMessage): void {
+  console.log(`[server] handleMessage: player=${player.id} t=${msg.t}`);
   switch (msg.t) {
     case MsgType.HELLO: {
       const nickname = String(msg.nickname ?? "").slice(0, 24).trim() || "玩家";
       player.nickname = nickname;
+      console.log(`[server] HELLO: player=${player.id} nickname=${nickname}`);
       player.send({ t: MsgType.HELLO_OK, playerId: player.id, serverTime: Date.now() });
       break;
     }
     case MsgType.CREATE_ROOM: {
-      if (!player.nickname) break;
+      console.log(`[server] CREATE_ROOM: player=${player.id} nickname=${JSON.stringify(player.nickname)}`);
+      if (!player.nickname) {
+        console.log(`[server] CREATE_ROOM 拒绝: nickname 为空`);
+        break;
+      }
       // IP 限流
       if (manager.countRoomsByIp(player.ip) >= NET.MAX_ROOMS_PER_IP) {
+        console.log(`[server] CREATE_ROOM 拒绝: IP 房间数过多`);
         player.send({ t: MsgType.ERROR, code: "TOO_MANY_ROOMS", message: "房间数过多" });
         break;
       }
       const existing = manager.findRoomOf(player);
-      if (existing) break; // 已在一个房间
+      if (existing) {
+        console.log(`[server] CREATE_ROOM 拒绝: 已在一个房间`);
+        break; // 已在一个房间
+      }
       const room = manager.createRoom(player);
+      console.log(`[server] CREATE_ROOM 成功: player=${player.id} code=${room.code}`);
       player.send({
         t: MsgType.ROOM_JOINED,
         code: room.code,

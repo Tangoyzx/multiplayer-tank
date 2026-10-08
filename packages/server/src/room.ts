@@ -303,11 +303,24 @@ export class Room {
   // ---- 移动 ----
 
   move(p: Player, turnId: number, dir: -1 | 1, steps: number): void {
+    const slot = this.slotOf(p);
+    // 非本回合 / 非当前操作者：静默忽略（不回复，避免干扰）
     if (this.phase !== "TURN") return;
-    if (this.currentSlot !== this.slotOf(p)) return;
+    if (this.currentSlot !== slot) return;
     if (turnId !== this.turnId) return;
     const s = this.slots[this.currentSlot];
-    if (s.moveLeft <= 0) return;
+
+    // 移动力耗尽：回一个空 path 的 MOVE_RESULT，让客户端同步状态并提示
+    if (s.moveLeft <= 0) {
+      p.send({
+        t: MsgType.MOVE_RESULT,
+        turnId: this.turnId,
+        slot: this.currentSlot,
+        path: [],
+        moveLeft: 0,
+      });
+      return;
+    }
 
     steps = Math.min(steps, s.moveLeft);
     const path: number[] = [];

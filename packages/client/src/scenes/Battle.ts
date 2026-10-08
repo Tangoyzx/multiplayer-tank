@@ -238,7 +238,13 @@ export class BattleScene implements Scene {
     const rightBtn = this.el.querySelector<HTMLElement>("#btn-right")!;
     const fireBtn = this.el.querySelector<HTMLElement>("#btn-fire")!;
 
-    const moveLoop = (dir: -1 | 1) => {
+    // 移动：按下立即走一步，按住则每 120ms 连续走（用指针事件 + 全局监听，避免 pointerleave 误停）
+    const startMove = (dir: -1 | 1) => {
+      // 立即走第一步（不等 interval）
+      if (this.myTurn && !this.animating) {
+        net.send({ t: MsgType.MOVE, turnId: this.turnId, dir, steps: 1 });
+      }
+      // 持续移动
       const interval = setInterval(() => {
         if (this.myTurn && !this.animating) {
           net.send({ t: MsgType.MOVE, turnId: this.turnId, dir, steps: 1 });
@@ -249,18 +255,37 @@ export class BattleScene implements Scene {
       return interval;
     };
 
-    leftBtn.addEventListener("pointerdown", () => {
-      const iv = moveLoop(-1);
-      leftBtn.addEventListener("pointerup", () => clearInterval(iv), { once: true });
-      leftBtn.addEventListener("pointerleave", () => clearInterval(iv), { once: true });
-    });
-    rightBtn.addEventListener("pointerdown", () => {
-      const iv = moveLoop(1);
-      rightBtn.addEventListener("pointerup", () => clearInterval(iv), { once: true });
-      rightBtn.addEventListener("pointerleave", () => clearInterval(iv), { once: true });
-    });
+    const bindHold = (btn: HTMLElement, dir: -1 | 1) => {
+      let iv: ReturnType<typeof setInterval> | null = null;
 
-    fireBtn.addEventListener("pointerdown", () => {
+      const clear = () => {
+        if (iv !== null) {
+          clearInterval(iv);
+          iv = null;
+        }
+      };
+
+      btn.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        // 防止重复按住（多点触控/重复触发）
+        if (iv !== null) return;
+        iv = startMove(dir);
+      });
+
+      // 用全局 pointerup/pointercancel 结束，避免 pointerleave 在触屏上误触发
+      btn.addEventListener("pointerup", clear);
+      btn.addEventListener("pointercancel", clear);
+      // 鼠标移出按钮时也结束（PC 端体验）
+      btn.addEventListener("pointerleave", clear);
+      // 兜底：指针释放时若还没清，也清一次
+      window.addEventListener("pointerup", clear, { once: true });
+    };
+
+    bindHold(leftBtn, -1);
+    bindHold(rightBtn, 1);
+
+    fireBtn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
       if (this.myTurn && !this.animating) {
         net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower });
       }
@@ -347,7 +372,10 @@ export class BattleScene implements Scene {
     // 同步服务端返回的权威移动力
     tank.moveLeft = moveLeft;
     if (path.length === 0) {
-      // 移动被拒绝（撞墙/边缘/移动力耗尽）
+      // 移动被拒绝：移动力耗尽 or 撞墙/边缘/挡路
+      if (moveLeft <= 0) {
+        this.renderer.spawnFloatText(tank.x, tank.y - 40, "移动力耗尽", "#94a3b8");
+      }
       this.updateHud();
       return;
     }

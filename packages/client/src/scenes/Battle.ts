@@ -93,8 +93,8 @@ export class BattleScene implements Scene {
 
   private resize = (): void => {
     const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = window.innerWidth * dpr;
-    this.canvas.height = window.innerHeight * dpr;
+    this.canvas.width = Math.floor(window.innerWidth * dpr);
+    this.canvas.height = Math.floor(window.innerHeight * dpr);
     this.canvas.style.width = window.innerWidth + "px";
     this.canvas.style.height = window.innerHeight + "px";
   };
@@ -423,9 +423,9 @@ export class BattleScene implements Scene {
 
     net.drain();
 
-    const dpr = window.devicePixelRatio || 1;
-    const viewW = this.canvas.width / dpr;
-    const viewH = this.canvas.height / dpr;
+    // 逻辑像素（canvas 的 CSS 尺寸，即 window.innerWidth/innerHeight）
+    const viewW = window.innerWidth;
+    const viewH = window.innerHeight;
 
     // 自适应缩放：屏幕越窄，zoom 越小（看到更多）
     this.renderer.zoom = clamp(viewW / 1200, 0.4, 1.2);

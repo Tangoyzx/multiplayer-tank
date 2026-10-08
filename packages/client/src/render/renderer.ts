@@ -68,13 +68,12 @@ export class Renderer {
   private applyCamera(viewW: number, viewH: number, zoom: number): void {
     const ctx = this.ctx;
     const dpr = window.devicePixelRatio || 1;
-    // 统一在设备像素坐标系下工作：清屏覆盖整个 canvas 实际像素，
-    // 之后通过 setTransform 把「逻辑坐标」映射到「设备像素」。
+    // 先重置到单位矩阵，用「设备像素」尺寸清屏（canvas 实际像素 = 逻辑像素 * dpr）
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, viewW * dpr, viewH * dpr);
     const sx = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
     const sy = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
-    // 镜头目标居中：逻辑坐标 * zoom 再 * dpr 得到设备像素
+    // 世界坐标（逻辑像素）→ 设备像素：scale = zoom * dpr，偏移同样乘 dpr
     const scale = zoom * dpr;
     const cx = (viewW / 2 - this.camera.x * zoom + sx) * dpr;
     const cy = (viewH / 2 - this.camera.y * zoom + sy) * dpr;

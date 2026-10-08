@@ -67,25 +67,30 @@ export class Renderer {
 
   private applyCamera(viewW: number, viewH: number, zoom: number): void {
     const ctx = this.ctx;
+    const dpr = window.devicePixelRatio || 1;
+    // 统一在设备像素坐标系下工作：清屏覆盖整个 canvas 实际像素，
+    // 之后通过 setTransform 把「逻辑坐标」映射到「设备像素」。
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, viewW, viewH);
-    // 居中于镜头目标
+    ctx.clearRect(0, 0, viewW * dpr, viewH * dpr);
     const sx = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
     const sy = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
-    const cx = viewW / 2 - this.camera.x * zoom + sx;
-    const cy = viewH / 2 - this.camera.y * zoom + sy;
-    ctx.setTransform(zoom, 0, 0, zoom, cx, cy);
+    // 镜头目标居中：逻辑坐标 * zoom 再 * dpr 得到设备像素
+    const scale = zoom * dpr;
+    const cx = (viewW / 2 - this.camera.x * zoom + sx) * dpr;
+    const cy = (viewH / 2 - this.camera.y * zoom + sy) * dpr;
+    ctx.setTransform(scale, 0, 0, scale, cx, cy);
   }
 
   drawSky(viewW: number, viewH: number): void {
     const ctx = this.ctx;
+    const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const grad = ctx.createLinearGradient(0, 0, 0, viewH);
+    const grad = ctx.createLinearGradient(0, 0, 0, viewH * dpr);
     grad.addColorStop(0, "#0ea5e9");
     grad.addColorStop(0.6, "#38bdf8");
     grad.addColorStop(1, "#bae6fd");
     ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, viewW, viewH);
+    ctx.fillRect(0, 0, viewW * dpr, viewH * dpr);
   }
 
   drawTerrain(heights: Float32Array, viewW: number, viewH: number, zoom: number): void {

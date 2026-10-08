@@ -132,7 +132,7 @@ export class BattleScene implements Scene {
         break;
 
       case MsgType.MOVE_RESULT:
-        this.animateMove(msg.slot, msg.path);
+        this.animateMove(msg.slot, msg.path, msg.moveLeft);
         break;
 
       case MsgType.FIRE_RESULT:
@@ -216,6 +216,18 @@ export class BattleScene implements Scene {
     // 移动力
     const moveEl = this.el.querySelector<HTMLElement>("#move-indicator")!;
     moveEl.textContent = `移动力：${this.tanks[this.currentSlot].moveLeft}`;
+    this.updateInputState();
+  }
+
+  // 根据 myTurn / animating 切换输入 UI 的可用状态（视觉屏蔽）
+  private updateInputState(): void {
+    const canAct = this.myTurn && !this.animating;
+    const controls = this.el.querySelectorAll<HTMLElement>("#btn-left, #btn-right, #btn-fire");
+    controls.forEach((c) => {
+      c.style.opacity = canAct ? "1" : "0.3";
+      c.style.pointerEvents = canAct ? "auto" : "none";
+    });
+    // 键盘/拖拽也通过 this.myTurn / this.animating 在事件处理里判断，这里无需额外处理
   }
 
   private setupInput(): void {
@@ -328,29 +340,26 @@ export class BattleScene implements Scene {
 
   // ---- 演出 ----
 
-  private animateMove(slot: Slot, path: number[]): void {
-    this.animating = true;
+  private animateMove(slot: Slot, path: number[], moveLeft: number): void {
+    // 注意：移动不设置 this.animating，否则会中断连续移动（触控按钮的 setInterval）。
+    // 移动是「轻量」操作，可以连续触发；只有开火结算才用 animating 锁定输入。
     const tank = this.tanks[slot];
-    const startX = tank.x;
-    const steps = path;
-    let i = 0;
-    const iv = setInterval(() => {
-      if (i >= steps.length) {
-        clearInterval(iv);
-        this.animating = false;
-        this.updateHud();
-        return;
-      }
-      tank.x = steps[i];
-      tank.y = heightAt(this.heights, tank.x) - TANK_HALF_H;
-      tank.moveLeft = Math.max(0, tank.moveLeft - 1);
+    // 同步服务端返回的权威移动力
+    tank.moveLeft = moveLeft;
+    if (path.length === 0) {
+      // 移动被拒绝（撞墙/边缘/移动力耗尽）
       this.updateHud();
-      i++;
-    }, 60);
+      return;
+    }
+    // 直接跳到最终位置（简单可靠）
+    tank.x = path[path.length - 1];
+    tank.y = heightAt(this.heights, tank.x) - TANK_HALF_H;
+    this.updateHud();
   }
 
   private animateFire(msg: Extract<ServerMessage, { t: typeof MsgType.FIRE_RESULT }>): void {
     this.animating = true;
+    this.updateHud();
     const slot = msg.slot;
     const traj = msg.trajectory;
     this.turretAngles[slot] = -(msg.angle * Math.PI) / 180;
@@ -397,6 +406,7 @@ export class BattleScene implements Scene {
         this.updateHud();
         setTimeout(() => {
           this.animating = false;
+          this.updateHud();
         }, 1200);
       } else {
         requestAnimationFrame(fly);

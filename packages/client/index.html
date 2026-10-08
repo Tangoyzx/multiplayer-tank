@@ -50,7 +50,12 @@
     <div id="select" class="scene hidden">
       <div class="title">选择坦克</div>
       <div class="hint">房间码：<span id="select-room-code"></span></div>
-      <div class="tank-grid"></div>
+      <div class="tank-carousel">
+        <button class="carousel-btn" id="tank-prev" aria-label="上一个">◀</button>
+        <div class="tank-card" id="tank-card"></div>
+        <button class="carousel-btn" id="tank-next" aria-label="下一个">▶</button>
+      </div>
+      <div class="carousel-dots" id="tank-dots"></div>
       <div class="hint" id="opp-status">等待对手选择...</div>
       <button class="btn btn-primary" id="ready-btn" disabled>准备</button>
     </div>

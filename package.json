@@ -1,0 +1,13 @@
+{
+  "name": "multiplayer-tank",
+  "version": "0.1.0",
+  "private": true,
+  "description": "回合制联机坦克大战（角度/力度炮战）",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "dev:server": "pnpm --filter @tank/server dev",
+    "dev:client": "pnpm --filter @tank/client dev"
+  },
+  "packageManager": "pnpm@12.3.4"
+}

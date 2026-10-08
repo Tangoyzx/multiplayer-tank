@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>联机坦克大战</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "@tank/shared": "/vendor/shared/index.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <!-- 战斗画布（始终存在，被战斗场景使用） -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- 大厅 -->
+    <div id="lobby" class="scene">
+      <div class="title">联机坦克大战</div>
+      <div class="subtitle">回合制 · 角度力度炮战</div>
+      <div class="panel">
+        <div class="field">
+          <label>昵称</label>
+          <input type="text" id="nickname" maxlength="24" placeholder="输入昵称" />
+        </div>
+        <button class="btn btn-primary" id="create-btn">创建房间</button>
+        <div class="field">
+          <label>房间码</label>
+          <input type="text" id="room-code" maxlength="4" placeholder="4 位房间码" style="text-transform:uppercase" />
+        </div>
+        <button class="btn btn-secondary" id="join-btn">加入房间</button>
+        <button class="btn btn-secondary" id="match-btn">快速匹配</button>
+      </div>
+    </div>
+
+    <!-- 等待对手 -->
+    <div id="waiting" class="scene hidden">
+      <div class="title">等待对手</div>
+      <div class="room-code-display" id="waiting-code"></div>
+      <div class="hint">把房间码发给你的朋友</div>
+      <div class="spinner"></div>
+    </div>
+
+    <!-- 选坦克 -->
+    <div id="select" class="scene hidden">
+      <div class="title">选择坦克</div>
+      <div class="hint">房间码：<span id="select-room-code"></span></div>
+      <div class="tank-grid"></div>
+      <div class="hint" id="opp-status">等待对手选择...</div>
+      <button class="btn btn-primary" id="ready-btn" disabled>准备</button>
+    </div>
+
+    <!-- 战斗 -->
+    <div id="battle" class="scene hidden">
+      <!-- HUD -->
+      <div id="battle-hud">
+        <div class="hud-top">
+          <div class="hud-player">
+            <div class="avatar">我</div>
+            <div>
+              <div id="nick-0">我</div>
+              <div class="hp-bar"><div class="hp-fill" id="hp-fill-0" style="width:100%"></div></div>
+            </div>
+          </div>
+          <div class="hud-player">
+            <div class="avatar">敌</div>
+            <div>
+              <div id="nick-1">对手</div>
+              <div class="hp-bar"><div class="hp-fill" id="hp-fill-1" style="width:100%"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="hud-turn-banner" id="turn-banner"></div>
+        <div class="hud-turn-timer"><div class="timer-fill" id="timer-fill" style="width:0%"></div></div>
+        <div class="hud-move" id="move-indicator">移动力：0</div>
+        <div class="hud-move" id="aim-indicator" style="bottom:170px">角度 45° 力度 60</div>
+        <div class="touch-controls">
+          <div class="touch-btn-row">
+            <div class="touch-btn" id="btn-left">◀</div>
+            <div class="touch-btn" id="btn-right">▶</div>
+          </div>
+          <div class="touch-btn" id="btn-fire">🔥</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 结算 -->
+    <div id="result" class="scene hidden">
+      <div class="result-text" id="result-text">胜利！</div>
+      <div class="hint" id="result-reason"></div>
+      <div class="row">
+        <button class="btn btn-primary" id="rematch-btn">再来一局</button>
+        <button class="btn btn-secondary" id="result-lobby-btn">返回大厅</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

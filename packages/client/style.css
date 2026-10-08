@@ -1,0 +1,443 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* 画布层 */
+#game-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: #0f172a;
+}
+
+/* 通用场景容器 */
+.scene {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* 大厅 */
+#lobby {
+  gap: 20px;
+}
+
+.title {
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  background: linear-gradient(135deg, #fbbf24, #ef4444);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 30px rgba(239, 68, 68, 0.3);
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #94a3b8;
+  margin-top: -12px;
+}
+
+.panel {
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid #334155;
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 300px;
+  max-width: 90vw;
+  backdrop-filter: blur(8px);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+input[type="text"] {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #e2e8f0;
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input[type="text"]:focus {
+  border-color: #f59e0b;
+}
+
+.btn {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s, filter 0.2s;
+  letter-spacing: 1px;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  color: #fff;
+}
+
+.btn-secondary {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.btn-sm {
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+}
+
+.row .btn {
+  flex: 1;
+}
+
+.hint {
+  font-size: 13px;
+  color: #64748b;
+  text-align: center;
+}
+
+.toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #dc2626;
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 100;
+  animation: toastIn 0.3s ease;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* 选坦克 */
+#select {
+  gap: 20px;
+}
+
+.tank-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 720px;
+  padding: 0 16px;
+}
+
+.tank-card {
+  background: rgba(30, 41, 59, 0.85);
+  border: 2px solid #334155;
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.tank-card:hover {
+  border-color: #f59e0b;
+  transform: translateY(-2px);
+}
+
+.tank-card.selected {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.tank-card .tank-name {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.tank-card .tank-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 10px;
+}
+
+.tank-card .tank-stats {
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.8;
+  text-align: left;
+}
+
+/* 等待对手 */
+#waiting {
+  gap: 20px;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #334155;
+  border-top-color: #f59e0b;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.room-code-display {
+  font-size: 48px;
+  font-weight: 800;
+  letter-spacing: 8px;
+  color: #fbbf24;
+}
+
+/* 战斗 HUD 覆盖层 */
+#battle-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hud-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px;
+}
+
+.hud-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(30, 41, 59, 0.7);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.hud-player .avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  background: #334155;
+}
+
+.hp-bar {
+  width: 120px;
+  height: 12px;
+  background: #1e293b;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.hp-bar .hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #84cc16);
+  transition: width 0.5s ease;
+}
+
+.hp-bar .hp-fill.low {
+  background: linear-gradient(90deg, #ef4444, #f97316);
+}
+
+.hud-turn-banner {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+  animation: bannerIn 0.5s ease;
+}
+
+@keyframes bannerIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.hud-turn-timer {
+  position: absolute;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 8px;
+  background: rgba(30, 41, 59, 0.7);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.hud-turn-timer .timer-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #fbbf24);
+  transition: width 0.1s linear;
+}
+
+.hud-turn-timer .timer-fill.urgent {
+  background: linear-gradient(90deg, #f97316, #ef4444);
+}
+
+/* 移动力指示 */
+.hud-move {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 14px;
+  color: #cbd5e1;
+  background: rgba(30, 41, 59, 0.7);
+  padding: 6px 14px;
+  border-radius: 20px;
+}
+
+/* 触控按钮 */
+.touch-controls {
+  position: absolute;
+  bottom: 16px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.touch-btn {
+  pointer-events: auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(30, 41, 59, 0.8);
+  border: 2px solid #334155;
+  color: #e2e8f0;
+  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.touch-btn:active {
+  background: rgba(245, 158, 11, 0.4);
+}
+
+.touch-btn-row {
+  display: flex;
+  gap: 12px;
+}
+
+/* 结算 */
+#result {
+  gap: 20px;
+}
+
+.result-text {
+  font-size: 36px;
+  font-weight: 800;
+}
+
+.result-text.win {
+  color: #fbbf24;
+}
+
+.result-text.lose {
+  color: #94a3b8;
+}
+
+@media (max-width: 600px) {
+  .title {
+    font-size: 32px;
+  }
+  .tank-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

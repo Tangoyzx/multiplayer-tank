@@ -39,7 +39,10 @@ export class Net {
         this.playerId = msg.playerId;
         this.clockOffset = msg.serverTime - Date.now();
       }
+      // 立即分发，而不是依赖 drain() 被外部循环调用
+      // （否则在大厅/选坦克等没有主循环的场景，消息会永远堆积在队列里）
       this.queue.push(msg);
+      this.drain();
     };
 
     ws.onclose = () => {

@@ -36,6 +36,11 @@ export class Net {
       } catch {
         return;
       }
+      // 心跳：收到 PING 立即回 PONG，否则服务端会在超时后踢掉连接
+      if (msg.t === MsgType.PING) {
+        this.send({ t: MsgType.PONG });
+        return;
+      }
       if (msg.t === MsgType.HELLO_OK) {
         this.playerId = msg.playerId;
         this.clockOffset = msg.serverTime - Date.now();

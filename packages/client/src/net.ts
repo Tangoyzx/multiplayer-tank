@@ -22,6 +22,7 @@ export class Net {
     this.ws = ws;
 
     ws.onopen = () => {
+      console.log("[net] WebSocket 已连接", url);
       this.reconnectAttempts = 0;
       this.reconnectDelay = 1000;
       this.onOpen();
@@ -42,12 +43,14 @@ export class Net {
     };
 
     ws.onclose = () => {
+      console.log("[net] WebSocket 已关闭");
       this.ws = null;
       this.onClose();
       if (!this.manualClose) this.scheduleReconnect();
     };
 
     ws.onerror = () => {
+      console.log("[net] WebSocket 出错");
       /* close 会触发 */
     };
   }

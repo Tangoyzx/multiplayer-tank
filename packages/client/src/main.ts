@@ -14,10 +14,16 @@ sceneManager.register("waiting", new WaitingScene());
 sceneManager.register("battle", new BattleScene());
 sceneManager.register("result", new ResultScene());
 
-// 网络连接 + 重连后重发 HELLO
+// 网络连接 + 重连后重发 HELLO（带 playerId 以便复用身份）
 net.dispatchOpen = () => {
   if (session.nickname) {
-    net.send({ t: "HELLO", nickname: session.nickname });
+    let playerId: string | undefined;
+    try {
+      playerId = sessionStorage.getItem("tank_player_id") ?? undefined;
+    } catch {
+      playerId = undefined;
+    }
+    net.send({ t: "HELLO", nickname: session.nickname, playerId });
   }
 };
 

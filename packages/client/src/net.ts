@@ -44,6 +44,12 @@ export class Net {
       if (msg.t === MsgType.HELLO_OK) {
         this.playerId = msg.playerId;
         this.clockOffset = msg.serverTime - Date.now();
+        // 持久化 playerId，用于断线重连时复用同一身份
+        try {
+          sessionStorage.setItem("tank_player_id", msg.playerId);
+        } catch {
+          /* ignore */
+        }
       }
       // 立即分发，而不是依赖 drain() 被外部循环调用
       // （否则在大厅/选坦克等没有主循环的场景，消息会永远堆积在队列里）

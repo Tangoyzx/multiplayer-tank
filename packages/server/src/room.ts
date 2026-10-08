@@ -164,17 +164,42 @@ export class Room {
     }
   }
 
+  // 对局中断线：保留 player 身份（不置 null），进入重连宽限。
+  // 由 index.ts 的 ws.on("close") 调用。
+  handleDisconnectPublic(p: Player): void {
+    const slot = this.slotOf(p);
+    if (this.slots[slot].player?.id !== p.id) return;
+    this.handleDisconnect(slot, slot === 0 ? 1 : 0);
+  }
+
   private handleDisconnect(disconnectedSlot: Slot, otherSlot: Slot): void {
     const other = this.slots[otherSlot];
     this.slots[disconnectedSlot].disconnectedAt = Date.now();
     other.player?.send({ t: MsgType.OPPONENT_LEFT, graceMs: NET.DISCONNECT_GRACE_MS });
 
     this.disconnectTimers[disconnectedSlot] = setTimeout(() => {
-      // 宽限期结束仍未回来 → 判对方胜
-      if (this.slots[disconnectedSlot].player === null) {
+      // 宽限期结束，若断线玩家仍未重连（ws 仍为 null）→ 移除并判对方胜
+      const p = this.slots[disconnectedSlot].player;
+      if (p && p.ws === null) {
+        this.slots[disconnectedSlot].player = null;
+        this.slots[disconnectedSlot].nickname = "";
         this.finishGame(otherSlot, "disconnect");
       }
     }, NET.DISCONNECT_GRACE_MS);
+  }
+
+  // 断线玩家重连成功：清除宽限定时器，恢复标记
+  markReconnected(p: Player): void {
+    const slot = this.slotOf(p);
+    if (this.slots[slot].player?.id !== p.id) return;
+    this.slots[slot].disconnectedAt = null;
+    if (this.disconnectTimers[slot]) {
+      clearTimeout(this.disconnectTimers[slot]!);
+      this.disconnectTimers[slot] = null;
+    }
+    // 通知对方玩家已回来
+    const other: Slot = slot === 0 ? 1 : 0;
+    this.slots[other].player?.send({ t: MsgType.PLAYER_JOINED, slot, nickname: p.nickname });
   }
 
   // 重新加入（预留：本版通过断线重连时调用）

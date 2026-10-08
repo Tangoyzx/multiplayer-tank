@@ -222,7 +222,7 @@ export interface PingMsg {
 // ---- 统一信封 ----
 
 export type ClientMessage =
-  | { t: typeof MsgType.HELLO; nickname: string }
+  | { t: typeof MsgType.HELLO; nickname: string; playerId?: string }
   | { t: typeof MsgType.CREATE_ROOM }
   | { t: typeof MsgType.JOIN_ROOM; code: string }
   | { t: typeof MsgType.QUICK_MATCH }

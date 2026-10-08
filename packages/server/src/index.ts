@@ -18,6 +18,10 @@ const manager = new RoomManager();
 const matchmaker = new Matchmaker();
 let playerSeq = 0;
 
+// 断线玩家注册表：playerId -> Player。断线后保留 player 对象（含房间/槽位/状态），
+// 客户端重连时用 playerId 复用同一对象，恢复战斗状态。
+const disconnectedPlayers = new Map<string, Player>();
+
 // ---- 静态文件服务 ----
 
 const MIME: Record<string, string> = {
@@ -85,7 +89,8 @@ const wss = new WebSocketServer({ server, path: "/ws", maxPayload: NET.MAX_MESSA
 
 wss.on("connection", (ws, req) => {
   const ip = (req.socket.remoteAddress ?? "unknown").replace(/^::ffff:/, "");
-  const player = new Player("p_" + ++playerSeq, ws, ip);
+  // 先用临时 player，收到 HELLO 后再决定是否复用断线玩家的身份
+  let player = new Player("p_" + ++playerSeq, ws, ip);
   log.info(`[server] WS 连接建立: player=${player.id} ip=${ip}`);
 
   ws.on("message", (raw) => {
@@ -103,6 +108,26 @@ wss.on("connection", (ws, req) => {
       ws.close(1003, "invalid json");
       return;
     }
+
+    // 首次 HELLO 带 playerId 且匹配断线玩家 → 复用旧身份（恢复房间/槽位/状态）
+    if (msg.t === MsgType.HELLO && msg.playerId && disconnectedPlayers.has(msg.playerId)) {
+      const old = disconnectedPlayers.get(msg.playerId)!;
+      log.info(`[server] 断线重连复用: old=${old.id} new临时=${player.id}`);
+      // 旧 player 重新绑定新 ws
+      old.ws = ws;
+      old.alive = true;
+      player = old;
+      disconnectedPlayers.delete(msg.playerId);
+
+      // 恢复房间状态
+      const room = manager.findRoomOf(player);
+      if (room) {
+        room.markReconnected(player);
+        player.send(room.snapshot());
+        log.info(`[server] 重连恢复: player=${player.id} room=${room.code} phase=${room.phase}`);
+      }
+    }
+
     handleMessage(player, msg);
   });
 
@@ -113,8 +138,16 @@ wss.on("connection", (ws, req) => {
     matchmaker.dequeue(player);
     const room = manager.findRoomOf(player);
     if (room) {
-      room.removePlayer(player);
-      if (room.phase === "CLOSED") manager.removeRoom(room);
+      // 对局中（TURN/RESOLVING）断线：保留 player 身份，进入重连宽限
+      const isMidGame = room.phase === "TURN" || room.phase === "RESOLVING";
+      if (isMidGame) {
+        disconnectedPlayers.set(player.id, player);
+        room.handleDisconnectPublic(player);
+        log.info(`[server] 断线保留身份待重连: player=${player.id}`);
+      } else {
+        room.removePlayer(player);
+        if (room.phase === "CLOSED") manager.removeRoom(room);
+      }
     }
   });
 
@@ -131,7 +164,7 @@ function handleMessage(player: Player, msg: ClientMessage): void {
     case MsgType.HELLO: {
       const nickname = String(msg.nickname ?? "").slice(0, 24).trim() || "玩家";
       player.nickname = nickname;
-      log.info(`[server] HELLO: player=${player.id} nickname=${nickname}`);
+      log.info(`[server] HELLO: player=${player.id} nickname=${nickname} playerId=${msg.playerId ?? "(无)"}`);
       player.send({ t: MsgType.HELLO_OK, playerId: player.id, serverTime: Date.now() });
       break;
     }

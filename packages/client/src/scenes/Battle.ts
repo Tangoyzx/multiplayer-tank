@@ -178,6 +178,9 @@ export class BattleScene implements Scene {
     this.currentSlot = msg.currentSlot;
     this.turnId = msg.turnId;
     this.deadline = msg.turnDeadline;
+    // 恢复「是否我的回合」状态
+    this.myTurn = msg.currentSlot === session.slot;
+    this.updateHud();
   }
 
   private showTurnBanner(slot: Slot, custom?: string): void {

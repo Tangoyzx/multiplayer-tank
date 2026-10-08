@@ -8,6 +8,7 @@ import { Player } from "./player.js";
 import { RoomManager } from "./roomManager.js";
 import { Matchmaker } from "./matchmaker.js";
 import type { Room } from "./room.js";
+import { log } from "./log.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 8080);
@@ -85,12 +86,12 @@ const wss = new WebSocketServer({ server, path: "/ws", maxPayload: NET.MAX_MESSA
 wss.on("connection", (ws, req) => {
   const ip = (req.socket.remoteAddress ?? "unknown").replace(/^::ffff:/, "");
   const player = new Player("p_" + ++playerSeq, ws, ip);
-  console.log(`[server] WS 连接建立: player=${player.id} ip=${ip}`);
+  log.info(`[server] WS 连接建立: player=${player.id} ip=${ip}`);
 
   ws.on("message", (raw) => {
-    console.log(`[server] 收到消息: player=${player.id} raw=${raw.toString()}`);
+    log.info(`[server] 收到消息: player=${player.id} raw=${raw.toString()}`);
     if (!player.allowMessage()) {
-      console.log(`[server] 限流拒绝: player=${player.id}`);
+      log.info(`[server] 限流拒绝: player=${player.id}`);
       ws.close(1008, "rate limited");
       return;
     }
@@ -98,7 +99,7 @@ wss.on("connection", (ws, req) => {
     try {
       msg = JSON.parse(raw.toString());
     } catch (e) {
-      console.log(`[server] JSON 解析失败: player=${player.id} err=${(e as Error).message}`);
+      log.info(`[server] JSON 解析失败: player=${player.id} err=${(e as Error).message}`);
       ws.close(1003, "invalid json");
       return;
     }
@@ -106,7 +107,7 @@ wss.on("connection", (ws, req) => {
   });
 
   ws.on("close", () => {
-    console.log(`[server] WS 连接关闭: player=${player.id}`);
+    log.info(`[server] WS 连接关闭: player=${player.id}`);
     player.alive = false;
     player.ws = null;
     matchmaker.dequeue(player);
@@ -118,41 +119,41 @@ wss.on("connection", (ws, req) => {
   });
 
   ws.on("error", (e) => {
-    console.log(`[server] WS 错误: player=${player.id} err=${(e as Error).message}`);
+    log.info(`[server] WS 错误: player=${player.id} err=${(e as Error).message}`);
   });
 });
 
 // ---- 消息处理 ----
 
 function handleMessage(player: Player, msg: ClientMessage): void {
-  console.log(`[server] handleMessage: player=${player.id} t=${msg.t}`);
+  log.info(`[server] handleMessage: player=${player.id} t=${msg.t}`);
   switch (msg.t) {
     case MsgType.HELLO: {
       const nickname = String(msg.nickname ?? "").slice(0, 24).trim() || "玩家";
       player.nickname = nickname;
-      console.log(`[server] HELLO: player=${player.id} nickname=${nickname}`);
+      log.info(`[server] HELLO: player=${player.id} nickname=${nickname}`);
       player.send({ t: MsgType.HELLO_OK, playerId: player.id, serverTime: Date.now() });
       break;
     }
     case MsgType.CREATE_ROOM: {
-      console.log(`[server] CREATE_ROOM: player=${player.id} nickname=${JSON.stringify(player.nickname)}`);
+      log.info(`[server] CREATE_ROOM: player=${player.id} nickname=${JSON.stringify(player.nickname)}`);
       if (!player.nickname) {
-        console.log(`[server] CREATE_ROOM 拒绝: nickname 为空`);
+        log.info(`[server] CREATE_ROOM 拒绝: nickname 为空`);
         break;
       }
       // IP 限流
       if (manager.countRoomsByIp(player.ip) >= NET.MAX_ROOMS_PER_IP) {
-        console.log(`[server] CREATE_ROOM 拒绝: IP 房间数过多`);
+        log.info(`[server] CREATE_ROOM 拒绝: IP 房间数过多`);
         player.send({ t: MsgType.ERROR, code: "TOO_MANY_ROOMS", message: "房间数过多" });
         break;
       }
       const existing = manager.findRoomOf(player);
       if (existing) {
-        console.log(`[server] CREATE_ROOM 拒绝: 已在一个房间`);
+        log.info(`[server] CREATE_ROOM 拒绝: 已在一个房间`);
         break; // 已在一个房间
       }
       const room = manager.createRoom(player);
-      console.log(`[server] CREATE_ROOM 成功: player=${player.id} code=${room.code}`);
+      log.info(`[server] CREATE_ROOM 成功: player=${player.id} code=${room.code}`);
       player.send({
         t: MsgType.ROOM_JOINED,
         code: room.code,
@@ -283,13 +284,13 @@ setInterval(() => {
 
 manager.startGC();
 server.listen(PORT, () => {
-  console.log(`[server] listening on http://0.0.0.0:${PORT}`);
-  console.log(`[server] static dir: ${STATIC_DIR}`);
+  log.info(`[server] listening on http://0.0.0.0:${PORT}`);
+  log.info(`[server] static dir: ${STATIC_DIR}`);
 });
 
 // 优雅关闭
 function shutdown(): void {
-  console.log("[server] shutting down...");
+  log.info("[server] shutting down...");
   wss.clients.forEach((c) => {
     try {
       c.send(JSON.stringify({ t: MsgType.SERVER_SHUTDOWN }));

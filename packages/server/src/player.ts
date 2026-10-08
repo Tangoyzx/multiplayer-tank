@@ -1,5 +1,6 @@
 import type WebSocket from "ws";
 import { NET, MsgType, type ClientMessage, type ServerMessage } from "@tank/shared";
+import { log } from "./log.js";
 
 export interface ConnMeta {
   ip: string;
@@ -26,13 +27,13 @@ export class Player {
   send(msg: ServerMessage): void {
     if (this.ws && this.ws.readyState === this.ws.OPEN) {
       try {
-        console.log(`[server] 发送消息: player=${this.id} t=${msg.t}`);
+        log.info(`[server] 发送消息: player=${this.id} t=${msg.t}`);
         this.ws.send(JSON.stringify(msg));
       } catch (e) {
-        console.log(`[server] 发送失败: player=${this.id} err=${(e as Error).message}`);
+        log.info(`[server] 发送失败: player=${this.id} err=${(e as Error).message}`);
       }
     } else {
-      console.log(`[server] 发送跳过(连接未就绪): player=${this.id} t=${msg.t} readyState=${this.ws?.readyState}`);
+      log.info(`[server] 发送跳过(连接未就绪): player=${this.id} t=${msg.t} readyState=${this.ws?.readyState}`);
     }
   }
 

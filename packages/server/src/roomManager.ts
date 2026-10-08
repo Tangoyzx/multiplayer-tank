@@ -1,6 +1,7 @@
 import { NET } from "@tank/shared";
 import { Room } from "./room.js";
 import type { Player } from "./player.js";
+import { log } from "./log.js";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 去掉 0/O/1/I/L
 
@@ -58,7 +59,7 @@ export class RoomManager {
       for (const [code, room] of this.rooms) {
         if (room.isStale()) {
           this.removeRoom(room);
-          console.log(`[gc] removed room ${code}`);
+          log.info(`[gc] removed room ${code}`);
         }
       }
     }, NET.ROOM_GC_INTERVAL_MS);

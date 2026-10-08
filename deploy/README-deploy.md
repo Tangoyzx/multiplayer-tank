@@ -187,3 +187,26 @@ pm2 restart multiplayer-tank
 | 重力/初速 | `constants.ts` → `PHYSICS` | 弹道手感 |
 | 坦克数值 | `packages/shared/src/tanks.ts` → `TANKS` | HP/攻击/移动/角度/力度 |
 | 端口 | `deploy/ecosystem.config.cjs` → `env.PORT` | |
+
+## 12. 日志开关
+
+客户端与服务端各有一个统一日志开关，默认**打开**。
+
+**服务端**：通过环境变量 `TANK_LOG` 控制。
+
+```bash
+# 关闭服务端日志（在 ecosystem.config.cjs 的 env 里加 TANK_LOG: "0"）
+# 或临时启动时：
+TANK_LOG=0 pm2 start deploy/ecosystem.config.cjs
+
+# 运行时也可在代码里调用 setLogEnabled(false)
+```
+
+**客户端**：通过 URL 参数或 localStorage 控制。
+
+- 临时关闭：访问 `http://IP:8080/?log=0`
+- 持久关闭：在浏览器 Console 执行 `localStorage.setItem('tank_log_enabled', '0')` 后刷新
+- 持久打开：`localStorage.setItem('tank_log_enabled', '1')` 后刷新
+- 代码运行时调用 `setLogEnabled(false)` 动态切换
+
+> 说明：关闭日志可减少生产环境的输出噪音，排查问题时再打开即可。所有日志统一走 `log.info/warn/error`，开关位于 `packages/client/src/log.ts`（客户端）和 `packages/server/src/log.ts`（服务端）。

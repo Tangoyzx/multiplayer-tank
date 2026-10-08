@@ -3,6 +3,7 @@ import { net } from "../net.js";
 import { session, saveNickname } from "../session.js";
 import { sceneManager, type Scene } from "./SceneManager.js";
 import { toast } from "../ui.js";
+import { log } from "../log.js";
 
 export class LobbyScene implements Scene {
   private el!: HTMLElement;
@@ -11,7 +12,7 @@ export class LobbyScene implements Scene {
   enter(): void {
     this.el = document.getElementById("lobby")!;
     this.el.classList.remove("hidden");
-    console.log("[Lobby] enter, connected=", net.connected);
+    log.info("[Lobby] enter, connected=", net.connected);
 
     const nickInput = this.el.querySelector<HTMLInputElement>("#nickname")!;
     const createBtn = this.el.querySelector<HTMLButtonElement>("#create-btn")!;
@@ -20,11 +21,11 @@ export class LobbyScene implements Scene {
     const matchBtn = this.el.querySelector<HTMLButtonElement>("#match-btn")!;
 
     nickInput.value = session.nickname;
-    console.log("[Lobby] nickname 初始值 =", JSON.stringify(session.nickname));
+    log.info("[Lobby] nickname 初始值 =", JSON.stringify(session.nickname));
 
     const ensureNick = (): boolean => {
       const n = nickInput.value.trim();
-      console.log("[Lobby] ensureNick: 输入框值 =", JSON.stringify(n), "connected =", net.connected);
+      log.info("[Lobby] ensureNick: 输入框值 =", JSON.stringify(n), "connected =", net.connected);
       if (!n) {
         toast("请先输入昵称");
         return false;
@@ -38,18 +39,18 @@ export class LobbyScene implements Scene {
     };
 
     createBtn.onclick = () => {
-      console.log("[Lobby] 点击了「创建房间」");
+      log.info("[Lobby] 点击了「创建房间」");
       if (!ensureNick()) return;
-      console.log("[Lobby] 发送 CREATE_ROOM, nickname =", JSON.stringify(session.nickname));
+      log.info("[Lobby] 发送 CREATE_ROOM, nickname =", JSON.stringify(session.nickname));
       net.send({ t: MsgType.HELLO, nickname: session.nickname });
       net.send({ t: MsgType.CREATE_ROOM });
     };
 
     joinBtn.onclick = () => {
-      console.log("[Lobby] 点击了「加入房间」");
+      log.info("[Lobby] 点击了「加入房间」");
       if (!ensureNick()) return;
       const code = codeInput.value.trim().toUpperCase();
-      console.log("[Lobby] 房间码 =", JSON.stringify(code));
+      log.info("[Lobby] 房间码 =", JSON.stringify(code));
       if (!code) {
         toast("请输入房间码");
         return;
@@ -59,7 +60,7 @@ export class LobbyScene implements Scene {
     };
 
     matchBtn.onclick = () => {
-      console.log("[Lobby] 点击了「快速匹配」");
+      log.info("[Lobby] 点击了「快速匹配」");
       if (!ensureNick()) return;
       net.send({ t: MsgType.HELLO, nickname: session.nickname });
       net.send({ t: MsgType.QUICK_MATCH });
@@ -68,11 +69,11 @@ export class LobbyScene implements Scene {
 
     // 监听消息
     this.unsub = net.on((msg) => {
-      console.log("[Lobby] 收到消息:", msg.t);
+      log.info("[Lobby] 收到消息:", msg.t);
       if (msg.t === MsgType.ROOM_JOINED) {
         session.roomCode = msg.code;
         session.slot = msg.slot;
-        console.log("[Lobby] ROOM_JOINED, code =", msg.code, "slot =", msg.slot, "players =", msg.players.length);
+        log.info("[Lobby] ROOM_JOINED, code =", msg.code, "slot =", msg.slot, "players =", msg.players.length);
         // 只有自己一人 → 等待对手；已满两人 → 选坦克
         if (msg.players.length < 2) {
           sceneManager.switchTo("waiting");

@@ -313,6 +313,9 @@ export class BattleScene implements Scene {
     });
 
     // 愤怒的小鸟式拖拽发射：在坦克位置按下，往后拉（发射反方向），松手发射
+    // 用「屏幕坐标」计算拉弓方向/距离，避免拖拽期间镜头移动导致世界坐标漂移
+    let downScreen = { x: 0, y: 0 };
+
     this.canvas.addEventListener("pointerdown", (e) => {
       if (!this.myTurn || this.animating) {
         log.info("[drag] pointerdown 忽略: myTurn=", this.myTurn, "animating=", this.animating);
@@ -325,8 +328,9 @@ export class BattleScene implements Scene {
       log.info("[drag] pointerdown: client=", e.clientX, e.clientY, "world=", p.x.toFixed(1), p.y.toFixed(1), "tank=", me.x.toFixed(1), me.y.toFixed(1), "dist=", distToTank.toFixed(1));
       if (distToTank <= 60) {
         this.dragging = true;
+        downScreen = { x: e.clientX, y: e.clientY };
         this.dragIndicator = { toX: p.x, toY: p.y };
-        log.info("[drag] 拖拽开始");
+        log.info("[drag] 拖拽开始, 屏幕基准=", e.clientX, e.clientY);
         e.preventDefault();
       } else {
         log.info("[drag] 距离坦克过远，未开始拖拽");
@@ -336,23 +340,24 @@ export class BattleScene implements Scene {
     this.canvas.addEventListener("pointermove", (e) => {
       if (!this.dragging) return;
       const me = this.tanks[session.slot];
+      // 拉弓向量：从当前手指位置指向按下基准点（向后拉）
+      const pullScreenX = downScreen.x - e.clientX;
+      const pullScreenY = downScreen.y - e.clientY;
+      const dist = Math.hypot(pullScreenX, pullScreenY);
+      // 更新指示线（世界坐标，供渲染）
       const cur = this.screenToWorld(e.clientX, e.clientY);
       this.dragIndicator = { toX: cur.x, toY: cur.y };
-      // 向后拉的向量（从手指指向坦克 = 拉的方向）
-      const pullX = me.x - cur.x;
-      const pullY = me.y - cur.y;
-      const dist = Math.hypot(pullX, pullY);
       // 只朝 facing 反方向拉（即往自己身后拉）才有意义
-      const pullDir = pullX * me.facing; // facing=1 朝右，向后拉 = 往左 pullX>0
+      const pullDir = pullScreenX * me.facing; // facing=1 朝右，向后拉 = 往左 pullScreenX>0
       if (pullDir <= 0) return; // 拉到了前方（朝向敌方），忽略
-      // 发射仰角：向后拉得越低（pullY 越负），发射角越高（高抛）
-      const angleRad = Math.atan2(-pullY, pullDir);
+      // 发射仰角：向后拉得越低（pullScreenY 越负 = 往下拉），发射角越高（高抛）
+      const angleRad = Math.atan2(-pullScreenY, pullDir);
       const def = TANKS.find((t) => t.id === me.tankId);
       const [alo, ahi] = def ? def.angle : [0, 89];
       const [plo, phi] = def ? def.power : [20, 100];
       this.aimAngle = clamp(Math.round((angleRad * 180) / Math.PI), alo, ahi);
       this.aimPower = clamp(Math.round(dist / 2), plo, phi);
-      log.info("[drag] pointermove: pullX=", pullX.toFixed(1), "pullY=", pullY.toFixed(1), "angle=", this.aimAngle, "power=", this.aimPower);
+      log.info("[drag] pointermove: pullSX=", pullScreenX.toFixed(1), "pullSY=", pullScreenY.toFixed(1), "angle=", this.aimAngle, "power=", this.aimPower);
       this.updateTurretFromAim();
       this.updateAimHud();
     });
@@ -361,11 +366,9 @@ export class BattleScene implements Scene {
       if (!this.dragging) return;
       this.dragging = false;
       // 松手发射：向后拉的距离达到一定阈值才发射（避免误触）
-      const me = this.tanks[session.slot];
-      const cur = this.screenToWorld(e.clientX, e.clientY);
-      const pullX = me.x - cur.x;
-      const pullY = me.y - cur.y;
-      const dist = Math.hypot(pullX, pullY);
+      const pullScreenX = downScreen.x - e.clientX;
+      const pullScreenY = downScreen.y - e.clientY;
+      const dist = Math.hypot(pullScreenX, pullScreenY);
       this.dragIndicator = null;
       log.info("[drag] pointerup: dist=", dist.toFixed(1), "myTurn=", this.myTurn, "animating=", this.animating);
       if (dist >= 20 && this.myTurn && !this.animating) {
@@ -580,17 +583,22 @@ export class BattleScene implements Scene {
     // 基础缩放：屏幕越窄，zoom 越小（看到更多）
     const baseZoom = clamp(viewW / 1200, 0.4, 1.2);
 
-    // 镜头目标：炮弹 > 拖拽瞄准（放大看敌方）> 当前回合坦克
+    // 镜头目标：炮弹 > 拖拽瞄准（含双方、留边距）> 当前回合坦克
     if (this.shell) {
       this.renderer.setZoomTarget(baseZoom);
       this.renderer.setCameraTarget(this.shell.x, this.shell.y - 100);
     } else if (this.dragging) {
-      // 拖拽时：放大视野，镜头移向我方与敌方的中间偏敌方，方便观察命中
+      // 拖拽时：动态计算 zoom，让双方都落在屏幕 10%~90% 区间（留边距）
       const me = this.tanks[session.slot];
       const enemy = this.tanks[session.slot === 0 ? 1 : 0];
-      const targetX = me.x * 0.35 + enemy.x * 0.65;
-      const targetY = Math.min(me.y, enemy.y) - 80;
-      this.renderer.setZoomTarget(baseZoom * 1.4);
+      const x0 = Math.min(me.x, enemy.x);
+      const x1 = Math.max(me.x, enemy.x);
+      const gap = Math.max(80, x1 - x0); // 至少 80，避免距离过近时 zoom 爆炸
+      // 让两车占屏幕中间 80%（10%~90%），且不超过 baseZoom 的 2 倍（避免过糊）
+      const fitZoom = clamp((viewW * 0.8) / gap, baseZoom * 0.5, baseZoom * 2.0);
+      const targetX = (x0 + x1) / 2;
+      const targetY = Math.min(me.y, enemy.y) - 60;
+      this.renderer.setZoomTarget(fitZoom);
       this.renderer.setCameraTarget(targetX, targetY);
     } else {
       this.renderer.setZoomTarget(baseZoom);

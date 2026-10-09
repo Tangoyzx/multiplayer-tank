@@ -52,6 +52,12 @@ export const MOVE = {
   EDGE_MARGIN: 16, // 坦克距离场地边缘的最小 x
 } as const;
 
+// 坦克碰撞/渲染半宽半高（服务端与客户端必须一致，用于弹道命中判定与预测线）
+export const TANK = {
+  HALF_W: 20,
+  HALF_H: 20,
+} as const;
+
 export const TURN = {
   TURN_SECONDS: 120, // 回合时长（秒），暂定 120，可配置
   TIMEOUT_STRIKE_LIMIT: 2, // 连续超时判负次数

@@ -4,6 +4,7 @@ import {
   MOVE,
   WORLD,
   NET,
+  TANK,
   generateHeights,
   heightAt,
   applyCrater,
@@ -24,8 +25,8 @@ import {
 } from "@tank/shared";
 import type { Player } from "./player.js";
 
-const TANK_HALF_W = 20;
-const TANK_HALF_H = 20;
+const TANK_HALF_W = TANK.HALF_W;
+const TANK_HALF_H = TANK.HALF_H;
 const SPAWN_X_LEFT = WORLD.WIDTH * 0.12;
 const SPAWN_X_RIGHT = WORLD.WIDTH * 0.88;
 

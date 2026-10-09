@@ -4,21 +4,25 @@ import {
   WORLD,
   COLS,
   TURN,
+  TANK,
   generateHeights,
   applyCrater,
   heightAt,
+  simulate,
   TANKS,
   type ServerMessage,
   type Slot,
   type Point,
   type BattleStartMsg,
+  type TankBody,
 } from "@tank/shared";
 import { net } from "../net.js";
 import { session } from "../session.js";
 import { sceneManager, type Scene } from "./SceneManager.js";
 import { Renderer } from "../render/renderer.js";
 
-const TANK_HALF_H = 20;
+const TANK_HALF_H = TANK.HALF_H;
+const TANK_HALF_W = TANK.HALF_W;
 const TANK_COLORS = ["#3b82f6", "#ef4444"]; // slot 0 蓝, slot 1 红
 
 interface TankState {
@@ -52,6 +56,9 @@ export class BattleScene implements Scene {
 
   // 炮弹/演出
   private shell: { x: number; y: number; traj: Point[]; idx: number } | null = null;
+
+  // 弹道预测线（发射前实时计算的轨迹点，无风环境）
+  private aimTrajectory: Point[] | null = null;
 
   private raf = 0;
   private lastTime = 0;
@@ -115,6 +122,8 @@ export class BattleScene implements Scene {
       };
     }
     this.currentSlot = start.firstSlot;
+    // 初始化瞄准控件范围（基于我方坦克）
+    this.syncAimControls();
   }
 
   private onMessage(msg: ServerMessage): void {
@@ -127,7 +136,9 @@ export class BattleScene implements Scene {
         this.tanks[msg.slot].moveLeft = msg.moveBudget;
         this.animating = false;
         this.shell = null;
+        this.aimTrajectory = null;
         this.showTurnBanner(msg.slot);
+        this.syncAimControls();
         this.updateHud();
         break;
 
@@ -230,6 +241,11 @@ export class BattleScene implements Scene {
       c.style.opacity = canAct ? "1" : "0.3";
       c.style.pointerEvents = canAct ? "auto" : "none";
     });
+    // 角度/力度滑条也随状态禁用
+    const sliders = this.el.querySelectorAll<HTMLInputElement>("#aim-angle, #aim-power");
+    sliders.forEach((s) => {
+      s.disabled = !canAct;
+    });
     // 键盘/拖拽也通过 this.myTurn / this.animating 在事件处理里判断，这里无需额外处理
   }
 
@@ -294,6 +310,20 @@ export class BattleScene implements Scene {
       }
     });
 
+    // 角度/力度滑条
+    const angleSlider = this.el.querySelector<HTMLInputElement>("#aim-angle")!;
+    const powerSlider = this.el.querySelector<HTMLInputElement>("#aim-power")!;
+
+    angleSlider.addEventListener("input", () => {
+      this.aimAngle = Number(angleSlider.value);
+      this.updateTurretFromAim();
+      this.updateAimHud();
+    });
+    powerSlider.addEventListener("input", () => {
+      this.aimPower = Number(powerSlider.value);
+      this.updateAimHud();
+    });
+
     // 鼠标拖拽瞄准（画布上）
     let dragStart: Point | null = null;
     this.canvas.addEventListener("pointerdown", (e) => {
@@ -337,15 +367,16 @@ export class BattleScene implements Scene {
         net.send({ t: MsgType.MOVE, turnId: this.turnId, dir: 1, steps: 1 });
         break;
       case "ArrowUp":
-        this.aimAngle = Math.min(89, this.aimAngle + 1);
-        this.turretAngles[session.slot] = -(this.aimAngle * Math.PI) / 180;
+      case "ArrowDown": {
+        const me = this.tanks[session.slot];
+        const def = TANKS.find((t) => t.id === me.tankId);
+        const [lo, hi] = def ? def.angle : [0, 89];
+        const delta = e.key === "ArrowUp" ? 1 : -1;
+        this.aimAngle = clamp(this.aimAngle + delta, lo, hi);
+        this.updateTurretFromAim();
         this.updateAimHud();
         break;
-      case "ArrowDown":
-        this.aimAngle = Math.max(0, this.aimAngle - 1);
-        this.turretAngles[session.slot] = -(this.aimAngle * Math.PI) / 180;
-        this.updateAimHud();
-        break;
+      }
       case " ":
         e.preventDefault();
         net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower });
@@ -359,6 +390,80 @@ export class BattleScene implements Scene {
   private updateAimHud(): void {
     const aimEl = this.el.querySelector<HTMLElement>("#aim-indicator")!;
     aimEl.textContent = `角度 ${this.aimAngle}°  力度 ${this.aimPower}`;
+    // 同步滑条数值显示
+    const angleVal = this.el.querySelector<HTMLElement>("#aim-angle-val");
+    const powerVal = this.el.querySelector<HTMLElement>("#aim-power-val");
+    if (angleVal) angleVal.textContent = `${this.aimAngle}°`;
+    if (powerVal) powerVal.textContent = `${this.aimPower}`;
+    // 同步滑条位置（键盘/拖拽改变 aimAngle/aimPower 时反推滑条）
+    const angleSlider = this.el.querySelector<HTMLInputElement>("#aim-angle");
+    const powerSlider = this.el.querySelector<HTMLInputElement>("#aim-power");
+    if (angleSlider && Number(angleSlider.value) !== this.aimAngle) {
+      angleSlider.value = String(this.aimAngle);
+    }
+    if (powerSlider && Number(powerSlider.value) !== this.aimPower) {
+      powerSlider.value = String(this.aimPower);
+    }
+  }
+
+  // 根据当前 aimAngle 更新炮管角度（含朝向）
+  private updateTurretFromAim(): void {
+    const me = this.tanks[session.slot];
+    const angleRad = (this.aimAngle * Math.PI) / 180;
+    this.turretAngles[session.slot] = -angleRad * (me.facing === 1 ? 1 : -1);
+  }
+
+  // 根据我方坦克的角度/力度范围，同步滑条 min/max，并 clamp 当前瞄准值
+  private syncAimControls(): void {
+    const me = this.tanks[session.slot];
+    const def = TANKS.find((t) => t.id === me.tankId);
+    const angleSlider = this.el.querySelector<HTMLInputElement>("#aim-angle")!;
+    const powerSlider = this.el.querySelector<HTMLInputElement>("#aim-power")!;
+    if (def) {
+      angleSlider.min = String(def.angle[0]);
+      angleSlider.max = String(def.angle[1]);
+      powerSlider.min = String(def.power[0]);
+      powerSlider.max = String(def.power[1]);
+      // clamp 当前值到坦克范围内
+      this.aimAngle = clamp(this.aimAngle, def.angle[0], def.angle[1]);
+      this.aimPower = clamp(this.aimPower, def.power[0], def.power[1]);
+    }
+    this.updateTurretFromAim();
+    this.updateAimHud();
+  }
+
+  // 计算发射预测线（无风环境），与服务端 resolveFire 的入参保持一致
+  private computeAimTrajectory(): void {
+    // 仅在自己的回合、非结算动画、非炮弹飞行中才显示预测线
+    if (!this.myTurn || this.animating || this.shell !== null) {
+      this.aimTrajectory = null;
+      return;
+    }
+    const me = this.tanks[session.slot];
+    if (!me.tankId) {
+      this.aimTrajectory = null;
+      return;
+    }
+    // 炮口位置：与服务端 resolveFire 完全一致
+    const start: Point = {
+      x: me.x + me.facing * (TANK_HALF_W - 4),
+      y: me.y - 6,
+    };
+    // 双方坦克包围盒（用于命中判定）
+    const tanks: TankBody[] = [0, 1].map((i) => {
+      const t = this.tanks[i as Slot];
+      return { x: t.x, y: t.y, halfW: TANK_HALF_W, halfH: TANK_HALF_H };
+    });
+    const result = simulate(
+      this.heights,
+      start,
+      this.aimAngle,
+      this.aimPower,
+      me.facing,
+      tanks,
+      session.slot,
+    );
+    this.aimTrajectory = result.trajectory;
   }
 
   private screenToWorld(cx: number, cy: number): Point {
@@ -472,6 +577,12 @@ export class BattleScene implements Scene {
     this.renderer.updateCamera(dt, viewW, viewH);
     this.renderer.drawSky(viewW, viewH);
     this.renderer.drawTerrain(this.heights, viewW, viewH, this.renderer.zoom);
+
+    // 弹道预测线（发射前实时计算 + 绘制）
+    this.computeAimTrajectory();
+    if (this.aimTrajectory && this.aimTrajectory.length > 0) {
+      this.renderer.drawAimTrajectory(this.aimTrajectory, TANK_COLORS[session.slot]);
+    }
 
     // 坦克
     for (const slot of [0, 1] as Slot[]) {

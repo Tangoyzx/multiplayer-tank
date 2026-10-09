@@ -168,6 +168,38 @@ export class Renderer {
     ctx.fill();
   }
 
+  // 弹道预测线（发射前的虚线 + 落点标记）
+  drawAimTrajectory(points: Point[], color: string): void {
+    const ctx = this.ctx;
+    if (points.length < 2) return;
+    ctx.save();
+    ctx.setLineDash([6, 6]);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.9;
+    // 落点标记：圆圈 + 十字
+    const last = points[points.length - 1];
+    ctx.beginPath();
+    ctx.arc(last.x, last.y, 6, 0, Math.PI * 2);
+    ctx.stroke();
+    const r = 10;
+    ctx.beginPath();
+    ctx.moveTo(last.x - r, last.y);
+    ctx.lineTo(last.x + r, last.y);
+    ctx.moveTo(last.x, last.y - r);
+    ctx.lineTo(last.x, last.y + r);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   spawnExplosion(x: number, y: number, power: number): void {
     const n = Math.round(20 + power * 0.5);
     for (let i = 0; i < n; i++) {

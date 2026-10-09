@@ -273,7 +273,8 @@ function handleMessage(player: Player, msg: ClientMessage): void {
       break;
     }
     case MsgType.ANIM_DONE: {
-      // 本版依赖定时器推进，ANIM_DONE 仅预留
+      const room = manager.findRoomOf(player);
+      room?.onAnimDone(player, msg.turnId);
       break;
     }
     case MsgType.REMATCH: {

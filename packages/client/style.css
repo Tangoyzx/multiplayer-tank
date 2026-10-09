@@ -430,7 +430,7 @@ input[type="text"]:focus {
   border-radius: 20px;
 }
 
-/* 触控按钮 + 瞄准滑条 */
+/* 触控按钮 */
 .touch-controls {
   position: absolute;
   bottom: 16px;
@@ -441,79 +441,6 @@ input[type="text"]:focus {
   gap: 10px;
   padding: 0 16px;
   pointer-events: none;
-}
-
-/* 角度/力度滑条区 */
-.aim-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  pointer-events: auto;
-  background: rgba(15, 23, 42, 0.6);
-  border-radius: 12px;
-  padding: 8px 12px;
-  max-width: 560px;
-  width: 100%;
-  align-self: center;
-}
-
-.aim-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.aim-label {
-  flex: 0 0 auto;
-  width: 36px;
-  font-size: 13px;
-  color: #cbd5e1;
-  font-weight: 600;
-}
-
-.aim-value {
-  flex: 0 0 auto;
-  width: 44px;
-  text-align: right;
-  font-size: 13px;
-  color: #fbbf24;
-  font-weight: 700;
-}
-
-.aim-row input[type="range"] {
-  flex: 1 1 auto;
-  -webkit-appearance: none;
-  appearance: none;
-  height: 6px;
-  border-radius: 3px;
-  background: #334155;
-  outline: none;
-  cursor: pointer;
-  touch-action: none;
-}
-
-.aim-row input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #fbbf24;
-  border: 2px solid #1e293b;
-  cursor: pointer;
-}
-
-.aim-row input[type="range"]::-moz-range-thumb {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #fbbf24;
-  border: 2px solid #1e293b;
-  cursor: pointer;
-}
-
-.aim-row input[type="range"]:disabled {
-  opacity: 0.35;
 }
 
 /* 移动/发射按钮行 */

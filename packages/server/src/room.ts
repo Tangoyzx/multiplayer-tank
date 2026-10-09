@@ -78,6 +78,9 @@ export class Room {
   lastActiveAt = Date.now();
   private resolveTimer: ReturnType<typeof setTimeout> | null = null;
   private disconnectTimers: Array<ReturnType<typeof setTimeout> | null> = [null, null];
+  // 等待客户端 ANIM_DONE 后推进回合
+  private pendingAdvance = false;
+  private advanceFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(code: string, p0: Player) {
     this.id = "room_" + ++roomSeq;
@@ -524,8 +527,30 @@ export class Room {
     if (this.phase === "CLOSED" || this.phase === "GAME_OVER") return;
     this.currentSlot = this.currentSlot === 0 ? 1 : 0;
     this.roundIndex++;
-    // 延迟进入下一回合，让 RESOLVING 演出有缓冲
-    setTimeout(() => this.beginTurn(), 1500);
+    // 等待客户端 ANIM_DONE 后再 beginTurn（让炮弹动画播完）
+    this.pendingAdvance = true;
+    // 兜底定时器：若客户端迟迟不发 ANIM_DONE（掉线/异常），5 秒后强制推进
+    if (this.advanceFallbackTimer) clearTimeout(this.advanceFallbackTimer);
+    this.advanceFallbackTimer = setTimeout(() => {
+      if (this.pendingAdvance) {
+        this.pendingAdvance = false;
+        this.beginTurn();
+      }
+    }, 5000);
+  }
+
+  // 客户端炮弹动画播完，通知服务端推进回合
+  onAnimDone(p: Player, turnId: number): void {
+    if (this.phase !== "RESOLVING") return;
+    if (!this.pendingAdvance) return;
+    if (turnId !== this.turnId) return;
+    // 只接受当前开火方（或任意一方）的确认；这里放宽为任意一方即可推进
+    this.pendingAdvance = false;
+    if (this.advanceFallbackTimer) {
+      clearTimeout(this.advanceFallbackTimer);
+      this.advanceFallbackTimer = null;
+    }
+    this.beginTurn();
   }
 
   // 玩家主动跳过回合（END_TURN）

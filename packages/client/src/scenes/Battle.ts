@@ -244,11 +244,6 @@ export class BattleScene implements Scene {
       c.style.opacity = canAct ? "1" : "0.3";
       c.style.pointerEvents = canAct ? "auto" : "none";
     });
-    // 角度/力度滑条也随状态禁用
-    const sliders = this.el.querySelectorAll<HTMLInputElement>("#aim-angle, #aim-power");
-    sliders.forEach((s) => {
-      s.disabled = !canAct;
-    });
     // 键盘/拖拽也通过 this.myTurn / this.animating 在事件处理里判断，这里无需额外处理
   }
 
@@ -311,20 +306,6 @@ export class BattleScene implements Scene {
       if (this.myTurn && !this.animating) {
         net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower });
       }
-    });
-
-    // 角度/力度滑条
-    const angleSlider = this.el.querySelector<HTMLInputElement>("#aim-angle")!;
-    const powerSlider = this.el.querySelector<HTMLInputElement>("#aim-power")!;
-
-    angleSlider.addEventListener("input", () => {
-      this.aimAngle = Number(angleSlider.value);
-      this.updateTurretFromAim();
-      this.updateAimHud();
-    });
-    powerSlider.addEventListener("input", () => {
-      this.aimPower = Number(powerSlider.value);
-      this.updateAimHud();
     });
 
     // 愤怒的小鸟式拖拽发射：在坦克位置按下，往外拖（方向=角度，距离=力度），松手发射
@@ -422,20 +403,6 @@ export class BattleScene implements Scene {
   private updateAimHud(): void {
     const aimEl = this.el.querySelector<HTMLElement>("#aim-indicator")!;
     aimEl.textContent = `角度 ${this.aimAngle}°  力度 ${this.aimPower}`;
-    // 同步滑条数值显示
-    const angleVal = this.el.querySelector<HTMLElement>("#aim-angle-val");
-    const powerVal = this.el.querySelector<HTMLElement>("#aim-power-val");
-    if (angleVal) angleVal.textContent = `${this.aimAngle}°`;
-    if (powerVal) powerVal.textContent = `${this.aimPower}`;
-    // 同步滑条位置（键盘/拖拽改变 aimAngle/aimPower 时反推滑条）
-    const angleSlider = this.el.querySelector<HTMLInputElement>("#aim-angle");
-    const powerSlider = this.el.querySelector<HTMLInputElement>("#aim-power");
-    if (angleSlider && Number(angleSlider.value) !== this.aimAngle) {
-      angleSlider.value = String(this.aimAngle);
-    }
-    if (powerSlider && Number(powerSlider.value) !== this.aimPower) {
-      powerSlider.value = String(this.aimPower);
-    }
   }
 
   // 根据当前 aimAngle 更新炮管角度（含朝向）
@@ -445,18 +412,11 @@ export class BattleScene implements Scene {
     this.turretAngles[session.slot] = -angleRad * (me.facing === 1 ? 1 : -1);
   }
 
-  // 根据我方坦克的角度/力度范围，同步滑条 min/max，并 clamp 当前瞄准值
+  // 根据我方坦克的角度/力度范围，clamp 当前瞄准值到合法区间
   private syncAimControls(): void {
     const me = this.tanks[session.slot];
     const def = TANKS.find((t) => t.id === me.tankId);
-    const angleSlider = this.el.querySelector<HTMLInputElement>("#aim-angle")!;
-    const powerSlider = this.el.querySelector<HTMLInputElement>("#aim-power")!;
     if (def) {
-      angleSlider.min = String(def.angle[0]);
-      angleSlider.max = String(def.angle[1]);
-      powerSlider.min = String(def.power[0]);
-      powerSlider.max = String(def.power[1]);
-      // clamp 当前值到坦克范围内
       this.aimAngle = clamp(this.aimAngle, def.angle[0], def.angle[1]);
       this.aimPower = clamp(this.aimPower, def.power[0], def.power[1]);
     }
@@ -584,6 +544,8 @@ export class BattleScene implements Scene {
         setTimeout(() => {
           this.animating = false;
           this.updateHud();
+          // 通知服务端动画播完，可以推进回合了
+          net.send({ t: MsgType.ANIM_DONE, turnId: msg.turnId });
         }, 1200);
       } else {
         requestAnimationFrame(fly);

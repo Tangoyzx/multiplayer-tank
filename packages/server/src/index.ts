@@ -60,10 +60,11 @@ function serveStatic(req: http.IncomingMessage, res: http.ServerResponse): void 
     const headers: Record<string, string> = {
       "Content-Type": MIME[ext] ?? "application/octet-stream",
     };
-    // HTML 不缓存；带 hash 的资源长缓存
+    // HTML 完全不缓存（no-store）：确保刷新永远拿到最新入口，从而加载最新版本的 JS/CSS
     if (ext === ".html") {
-      headers["Cache-Control"] = "no-cache";
+      headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
     } else {
+      // 带版本指纹（?v=版本号）的静态资源：URL 唯一，可长缓存
       headers["Cache-Control"] = "public, max-age=31536000, immutable";
     }
     res.writeHead(200, headers);

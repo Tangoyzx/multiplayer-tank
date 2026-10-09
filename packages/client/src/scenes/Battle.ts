@@ -312,9 +312,9 @@ export class BattleScene implements Scene {
       }
     });
 
-    // 愤怒的小鸟式拖拽发射：在坦克位置按下，往后拉（发射反方向），松手发射
-    // 用「屏幕坐标」计算拉弓方向/距离，避免拖拽期间镜头移动导致世界坐标漂移
-    let downScreen = { x: 0, y: 0 };
+    // 弹弓式拖拽发射：锚点 = 炮口，发射方向 = 「手指 → 炮口」的延长线
+    // 力度 = 手指到炮口的距离；与 facing 无关（方向由手指相对炮口的位置自然决定）
+    let muzzleScreen = { x: 0, y: 0 }; // 按下时锁定的炮口屏幕坐标
 
     this.canvas.addEventListener("pointerdown", (e) => {
       if (!this.myTurn || this.animating) {
@@ -325,12 +325,14 @@ export class BattleScene implements Scene {
       const p = this.screenToWorld(e.clientX, e.clientY);
       // 只有按在坦克附近（半径 60px）才开始拖拽
       const distToTank = Math.hypot(p.x - me.x, p.y - me.y);
-      log.info("[drag] pointerdown: client=", e.clientX, e.clientY, "world=", p.x.toFixed(1), p.y.toFixed(1), "tank=", me.x.toFixed(1), me.y.toFixed(1), "dist=", distToTank.toFixed(1));
       if (distToTank <= 60) {
         this.dragging = true;
-        downScreen = { x: e.clientX, y: e.clientY };
+        // 锁定炮口屏幕坐标（拖拽期间镜头会动，必须锁定锚点）
+        const muzzleWX = me.x + me.facing * (TANK_HALF_W - 4);
+        const muzzleWY = me.y - 6;
+        muzzleScreen = this.worldToScreen(muzzleWX, muzzleWY);
         this.dragIndicator = { toX: p.x, toY: p.y };
-        log.info("[drag] 拖拽开始, 屏幕基准=", e.clientX, e.clientY);
+        log.info("[drag] 拖拽开始, 炮口屏幕=", muzzleScreen.x.toFixed(1), muzzleScreen.y.toFixed(1), "facing=", me.facing);
         e.preventDefault();
       } else {
         log.info("[drag] 距离坦克过远，未开始拖拽");
@@ -340,24 +342,32 @@ export class BattleScene implements Scene {
     this.canvas.addEventListener("pointermove", (e) => {
       if (!this.dragging) return;
       const me = this.tanks[session.slot];
-      // 拉弓向量：从当前手指位置指向按下基准点（向后拉）
-      const pullScreenX = downScreen.x - e.clientX;
-      const pullScreenY = downScreen.y - e.clientY;
-      const dist = Math.hypot(pullScreenX, pullScreenY);
+      // 发射方向 = 炮口 - 手指（弹弓延长线）
+      const dx = muzzleScreen.x - e.clientX;
+      const dy = muzzleScreen.y - e.clientY;
+      const dist = Math.hypot(dx, dy);
       // 更新指示线（世界坐标，供渲染）
       const cur = this.screenToWorld(e.clientX, e.clientY);
       this.dragIndicator = { toX: cur.x, toY: cur.y };
-      // 只朝 facing 反方向拉（即往自己身后拉）才有意义
-      const pullDir = pullScreenX * me.facing; // facing=1 朝右，向后拉 = 往左 pullScreenX>0
-      if (pullDir <= 0) return; // 拉到了前方（朝向敌方），忽略
-      // 发射仰角：向后拉得越低（pullScreenY 越负 = 往下拉），发射角越高（高抛）
-      const angleRad = Math.atan2(-pullScreenY, pullDir);
+      // 水平分量需朝 facing 方向（dx*facing >= 0）；dx<0 表示手指拖到了炮口前方（错误一侧）
+      const hDir = dx * me.facing;
+      if (hDir < 0) {
+        log.info("[drag] 手指在错误一侧, dx=", dx.toFixed(1), "facing=", me.facing);
+        return;
+      }
+      // 仰角：向上分量（屏幕 -dy）比水平分量；dx≈0 时（正下方/正上方）取最大仰角
+      let angleRad: number;
+      if (Math.abs(hDir) < 1) {
+        angleRad = Math.PI / 2; // 正上方 → 89°（最大仰角）
+      } else {
+        angleRad = Math.atan2(-dy, hDir);
+      }
       const def = TANKS.find((t) => t.id === me.tankId);
       const [alo, ahi] = def ? def.angle : [0, 89];
       const [plo, phi] = def ? def.power : [20, 100];
       this.aimAngle = clamp(Math.round((angleRad * 180) / Math.PI), alo, ahi);
       this.aimPower = clamp(Math.round(dist / 2), plo, phi);
-      log.info("[drag] pointermove: pullSX=", pullScreenX.toFixed(1), "pullSY=", pullScreenY.toFixed(1), "angle=", this.aimAngle, "power=", this.aimPower);
+      log.info("[drag] move: dx=", dx.toFixed(1), "dy=", dy.toFixed(1), "hDir=", hDir.toFixed(1), "angle=", this.aimAngle, "power=", this.aimPower);
       this.updateTurretFromAim();
       this.updateAimHud();
     });
@@ -365,12 +375,12 @@ export class BattleScene implements Scene {
     this.canvas.addEventListener("pointerup", (e) => {
       if (!this.dragging) return;
       this.dragging = false;
-      // 松手发射：向后拉的距离达到一定阈值才发射（避免误触）
-      const pullScreenX = downScreen.x - e.clientX;
-      const pullScreenY = downScreen.y - e.clientY;
-      const dist = Math.hypot(pullScreenX, pullScreenY);
+      // 松手发射：拉拽距离达到阈值才发射（避免误触）
+      const dx = muzzleScreen.x - e.clientX;
+      const dy = muzzleScreen.y - e.clientY;
+      const dist = Math.hypot(dx, dy);
       this.dragIndicator = null;
-      log.info("[drag] pointerup: dist=", dist.toFixed(1), "myTurn=", this.myTurn, "animating=", this.animating);
+      log.info("[drag] up: dist=", dist.toFixed(1), "myTurn=", this.myTurn, "animating=", this.animating);
       if (dist >= 20 && this.myTurn && !this.animating) {
         log.info("[drag] 发射! angle=", this.aimAngle, "power=", this.aimPower);
         net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower });
@@ -480,6 +490,17 @@ export class BattleScene implements Scene {
     return {
       x: (cx - viewW / 2) / cam.zoom + cam.x,
       y: (cy - viewH / 2) / cam.zoom + cam.y,
+    };
+  }
+
+  private worldToScreen(wx: number, wy: number): Point {
+    // 世界坐标 → 屏幕坐标（CSS 逻辑像素），screenToWorld 的逆运算
+    const cam = this.renderer.getCamera();
+    const viewW = window.innerWidth;
+    const viewH = window.innerHeight;
+    return {
+      x: (wx - cam.x) * cam.zoom + viewW / 2,
+      y: (wy - cam.y) * cam.zoom + viewH / 2,
     };
   }
 

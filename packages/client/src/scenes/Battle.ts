@@ -324,7 +324,7 @@ export class BattleScene implements Scene {
       this.updateAimHud();
     });
 
-    // 鼠标拖拽瞄准（画布上）
+    // 鼠标拖拽瞄准（画布上）：拖拽调整角度/力度，松手不发射（发射交给 🔥 按钮）
     let dragStart: Point | null = null;
     this.canvas.addEventListener("pointerdown", (e) => {
       if (!this.myTurn || this.animating) return;
@@ -334,26 +334,25 @@ export class BattleScene implements Scene {
       if (!dragStart) return;
       const cur = this.screenToWorld(e.clientX, e.clientY);
       const me = this.tanks[session.slot];
-      const dx = cur.x - me.x;
-      const dy = cur.y - me.y;
-      // 拉弓式：向后拉
+      // 拉弓式：从坦克位置向后拉
       const pullX = me.x - cur.x;
       const pullY = me.y - cur.y;
       const dist = Math.min(200, Math.hypot(pullX, pullY));
       const angleRad = Math.atan2(-pullY, Math.abs(pullX));
-      this.aimAngle = clamp(Math.round((angleRad * 180) / Math.PI), 0, 89);
-      this.aimPower = clamp(Math.round(dist / 2), 20, 100);
-      this.turretAngles[session.slot] = -angleRad * (me.facing === 1 ? 1 : -1);
+      const def = TANKS.find((t) => t.id === me.tankId);
+      const [alo, ahi] = def ? def.angle : [0, 89];
+      const [plo, phi] = def ? def.power : [20, 100];
+      this.aimAngle = clamp(Math.round((angleRad * 180) / Math.PI), alo, ahi);
+      this.aimPower = clamp(Math.round(dist / 2), plo, phi);
+      this.updateTurretFromAim();
       this.updateAimHud();
     });
-    this.canvas.addEventListener("pointerup", (e) => {
-      if (dragStart) {
-        dragStart = null;
-        // 松手发射
-        if (this.myTurn && !this.animating) {
-          net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower });
-        }
-      }
+    this.canvas.addEventListener("pointerup", () => {
+      dragStart = null;
+      // 松手不发射，只结束拖拽瞄准
+    });
+    this.canvas.addEventListener("pointercancel", () => {
+      dragStart = null;
     });
   }
 
@@ -467,8 +466,14 @@ export class BattleScene implements Scene {
   }
 
   private screenToWorld(cx: number, cy: number): Point {
-    // 简化：世界坐标 = 屏幕坐标（镜头未缩放时）
-    return { x: cx, y: cy };
+    // 屏幕坐标（CSS 逻辑像素）→ 世界坐标，考虑镜头缩放与偏移
+    const cam = this.renderer.getCamera();
+    const viewW = window.innerWidth;
+    const viewH = window.innerHeight;
+    return {
+      x: (cx - viewW / 2) / cam.zoom + cam.x,
+      y: (cy - viewH / 2) / cam.zoom + cam.y,
+    };
   }
 
   // ---- 演出 ----
@@ -498,7 +503,10 @@ export class BattleScene implements Scene {
     this.updateHud();
     const slot = msg.slot;
     const traj = msg.trajectory;
-    this.turretAngles[slot] = -(msg.angle * Math.PI) / 180;
+    // 炮管角度需考虑朝向（与 updateTurretFromAim 一致）
+    const angleRad = (msg.angle * Math.PI) / 180;
+    const facing = this.tanks[slot].facing;
+    this.turretAngles[slot] = -angleRad * (facing === 1 ? 1 : -1);
 
     // 播放炮弹飞行
     this.shell = { x: traj[0].x, y: traj[0].y, traj, idx: 0 };

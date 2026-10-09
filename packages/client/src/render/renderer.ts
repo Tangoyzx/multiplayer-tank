@@ -53,6 +53,11 @@ export class Renderer {
     this.target = { x, y };
   }
 
+  // 暴露镜头状态，供屏幕坐标 → 世界坐标换算（拖拽瞄准用）
+  getCamera(): { x: number; y: number; zoom: number } {
+    return { x: this.camera.x, y: this.camera.y, zoom: this.zoom };
+  }
+
   updateCamera(dt: number, viewW: number, viewH: number): void {
     const lerp = Math.min(1, dt * 8);
     this.camera.x += (this.target.x - this.camera.x) * lerp;

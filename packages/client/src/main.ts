@@ -6,6 +6,11 @@ import { WaitingScene } from "./scenes/Waiting.js";
 import { BattleScene } from "./scenes/Battle.js";
 import { ResultScene } from "./scenes/Result.js";
 import { session } from "./session.js";
+import { VERSION } from "./version.js";
+
+// 填充版本号
+const versionEl = document.querySelector<HTMLElement>("#version-badge");
+if (versionEl) versionEl.textContent = `v${VERSION}`;
 
 // 注册场景
 sceneManager.register("lobby", new LobbyScene());

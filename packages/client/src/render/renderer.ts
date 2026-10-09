@@ -42,6 +42,7 @@ export class Renderer {
   particles: Particle[] = [];
   floatTexts: FloatText[] = [];
   zoom = 1;
+  zoomTarget = 1;
   shake = 0;
 
   constructor(ctx: CanvasRenderingContext2D) {
@@ -53,6 +54,11 @@ export class Renderer {
     this.target = { x, y };
   }
 
+  // 设置目标缩放（缓动逼近）
+  setZoomTarget(z: number): void {
+    this.zoomTarget = z;
+  }
+
   // 暴露镜头状态，供屏幕坐标 → 世界坐标换算（拖拽瞄准用）
   getCamera(): { x: number; y: number; zoom: number } {
     return { x: this.camera.x, y: this.camera.y, zoom: this.zoom };
@@ -62,6 +68,8 @@ export class Renderer {
     const lerp = Math.min(1, dt * 8);
     this.camera.x += (this.target.x - this.camera.x) * lerp;
     this.camera.y += (this.target.y - this.camera.y) * lerp;
+    // 缩放缓动
+    this.zoom += (this.zoomTarget - this.zoom) * lerp;
     // 震屏衰减
     this.shake = Math.max(0, this.shake - dt * 30);
   }

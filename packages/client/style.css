@@ -316,6 +316,10 @@ input[type="text"]:focus {
 }
 
 /* 战斗 HUD 覆盖层 */
+#battle {
+  pointer-events: none; /* 让鼠标/触屏事件穿透到 canvas（拖拽发射需要） */
+}
+
 #battle-hud {
   position: absolute;
   inset: 0;

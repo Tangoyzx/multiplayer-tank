@@ -20,6 +20,7 @@ import { net } from "../net.js";
 import { session } from "../session.js";
 import { sceneManager, type Scene } from "./SceneManager.js";
 import { Renderer } from "../render/renderer.js";
+import { log } from "../log.js";
 
 const TANK_HALF_H = TANK.HALF_H;
 const TANK_HALF_W = TANK.HALF_W;
@@ -313,16 +314,23 @@ export class BattleScene implements Scene {
     let dragFired = false;
 
     this.canvas.addEventListener("pointerdown", (e) => {
-      if (!this.myTurn || this.animating) return;
+      if (!this.myTurn || this.animating) {
+        log.info("[drag] pointerdown 忽略: myTurn=", this.myTurn, "animating=", this.animating);
+        return;
+      }
       const me = this.tanks[session.slot];
       const p = this.screenToWorld(e.clientX, e.clientY);
       // 只有按在坦克附近（半径 60px）才开始拖拽
       const distToTank = Math.hypot(p.x - me.x, p.y - me.y);
+      log.info("[drag] pointerdown: client=", e.clientX, e.clientY, "world=", p.x.toFixed(1), p.y.toFixed(1), "tank=", me.x.toFixed(1), me.y.toFixed(1), "dist=", distToTank.toFixed(1));
       if (distToTank <= 60) {
         dragActive = true;
         dragFired = false;
         this.dragIndicator = { toX: p.x, toY: p.y };
+        log.info("[drag] 拖拽开始");
         e.preventDefault();
+      } else {
+        log.info("[drag] 距离坦克过远，未开始拖拽");
       }
     });
 
@@ -345,6 +353,7 @@ export class BattleScene implements Scene {
       const [plo, phi] = def ? def.power : [20, 100];
       this.aimAngle = clamp(Math.round((angleRad * 180) / Math.PI), alo, ahi);
       this.aimPower = clamp(Math.round(dist / 2), plo, phi);
+      log.info("[drag] pointermove: dx=", dx.toFixed(1), "dy=", dy.toFixed(1), "angle=", this.aimAngle, "power=", this.aimPower);
       this.updateTurretFromAim();
       this.updateAimHud();
     });
@@ -359,12 +368,15 @@ export class BattleScene implements Scene {
       const cur = this.screenToWorld(e.clientX, e.clientY);
       const dist = Math.hypot(cur.x - me.x, cur.y - me.y);
       this.dragIndicator = null;
+      log.info("[drag] pointerup: dist=", dist.toFixed(1), "myTurn=", this.myTurn, "animating=", this.animating);
       if (dist >= 20 && this.myTurn && !this.animating) {
+        log.info("[drag] 发射! angle=", this.aimAngle, "power=", this.aimPower);
         net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower });
       }
     });
 
     this.canvas.addEventListener("pointercancel", () => {
+      log.info("[drag] pointercancel");
       dragActive = false;
       this.dragIndicator = null;
     });

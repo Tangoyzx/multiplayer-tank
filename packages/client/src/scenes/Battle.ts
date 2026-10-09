@@ -60,6 +60,9 @@ export class BattleScene implements Scene {
   // 弹道预测线（发射前实时计算的轨迹点，无风环境）
   private aimTrajectory: Point[] | null = null;
 
+  // 拖拽发射的指示线（从坦克到当前手指/鼠标位置）
+  private dragIndicator: { toX: number; toY: number } | null = null;
+
   private raf = 0;
   private lastTime = 0;
   private animating = false;
@@ -324,21 +327,38 @@ export class BattleScene implements Scene {
       this.updateAimHud();
     });
 
-    // 鼠标拖拽瞄准（画布上）：拖拽调整角度/力度，松手不发射（发射交给 🔥 按钮）
-    let dragStart: Point | null = null;
+    // 愤怒的小鸟式拖拽发射：在坦克位置按下，往外拖（方向=角度，距离=力度），松手发射
+    let dragActive = false;
+    let dragFired = false;
+
     this.canvas.addEventListener("pointerdown", (e) => {
       if (!this.myTurn || this.animating) return;
-      dragStart = this.screenToWorld(e.clientX, e.clientY);
-    });
-    this.canvas.addEventListener("pointermove", (e) => {
-      if (!dragStart) return;
-      const cur = this.screenToWorld(e.clientX, e.clientY);
       const me = this.tanks[session.slot];
-      // 拉弓式：从坦克位置向后拉
-      const pullX = me.x - cur.x;
-      const pullY = me.y - cur.y;
-      const dist = Math.min(200, Math.hypot(pullX, pullY));
-      const angleRad = Math.atan2(-pullY, Math.abs(pullX));
+      const p = this.screenToWorld(e.clientX, e.clientY);
+      // 只有按在坦克附近（半径 60px）才开始拖拽
+      const distToTank = Math.hypot(p.x - me.x, p.y - me.y);
+      if (distToTank <= 60) {
+        dragActive = true;
+        dragFired = false;
+        this.dragIndicator = { toX: p.x, toY: p.y };
+        e.preventDefault();
+      }
+    });
+
+    this.canvas.addEventListener("pointermove", (e) => {
+      if (!dragActive) return;
+      const me = this.tanks[session.slot];
+      const cur = this.screenToWorld(e.clientX, e.clientY);
+      this.dragIndicator = { toX: cur.x, toY: cur.y };
+      // 从坦克往外拖的向量
+      const dx = cur.x - me.x;
+      const dy = cur.y - me.y;
+      const dist = Math.hypot(dx, dy);
+      // 只朝 facing 方向拖才有意义（否则方向反向）
+      const facingDir = dx * me.facing; // facing=1 朝右，facing=-1 朝左
+      if (facingDir <= 0) return; // 拖到反方向，忽略
+      // 仰角：拖得越高角度越大（向上为负 dy）
+      const angleRad = Math.atan2(-dy, facingDir);
       const def = TANKS.find((t) => t.id === me.tankId);
       const [alo, ahi] = def ? def.angle : [0, 89];
       const [plo, phi] = def ? def.power : [20, 100];
@@ -347,12 +367,25 @@ export class BattleScene implements Scene {
       this.updateTurretFromAim();
       this.updateAimHud();
     });
-    this.canvas.addEventListener("pointerup", () => {
-      dragStart = null;
-      // 松手不发射，只结束拖拽瞄准
+
+    this.canvas.addEventListener("pointerup", (e) => {
+      if (!dragActive) return;
+      dragActive = false;
+      if (dragFired) return;
+      dragFired = true;
+      // 松手发射：拖拽距离达到一定阈值才发射（避免误触）
+      const me = this.tanks[session.slot];
+      const cur = this.screenToWorld(e.clientX, e.clientY);
+      const dist = Math.hypot(cur.x - me.x, cur.y - me.y);
+      this.dragIndicator = null;
+      if (dist >= 20 && this.myTurn && !this.animating) {
+        net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower });
+      }
     });
+
     this.canvas.addEventListener("pointercancel", () => {
-      dragStart = null;
+      dragActive = false;
+      this.dragIndicator = null;
     });
   }
 
@@ -590,6 +623,12 @@ export class BattleScene implements Scene {
     this.computeAimTrajectory();
     if (this.aimTrajectory && this.aimTrajectory.length > 0) {
       this.renderer.drawAimTrajectory(this.aimTrajectory, TANK_COLORS[session.slot]);
+    }
+
+    // 拖拽发射指示线
+    if (this.dragIndicator) {
+      const me = this.tanks[session.slot];
+      this.renderer.drawDragIndicator(me.x, me.y, this.dragIndicator.toX, this.dragIndicator.toY);
     }
 
     // 坦克

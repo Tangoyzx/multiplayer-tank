@@ -205,6 +205,27 @@ export class Renderer {
     ctx.restore();
   }
 
+  // 拖拽发射指示线（从坦克到手指/鼠标位置，愤怒小鸟式）
+  drawDragIndicator(fromX: number, fromY: number, toX: number, toY: number): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = 0.8;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#fbbf24";
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    ctx.lineTo(toX, toY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // 手指端圆点
+    ctx.beginPath();
+    ctx.arc(toX, toY, 6, 0, Math.PI * 2);
+    ctx.fillStyle = "#fbbf24";
+    ctx.fill();
+    ctx.restore();
+  }
+
   spawnExplosion(x: number, y: number, power: number): void {
     const n = Math.round(20 + power * 0.5);
     for (let i = 0; i < n; i++) {

@@ -169,6 +169,17 @@ Caddyfile：
 
 ## 10. 更新部署
 
+**方式一：一键脚本（推荐）**
+
+```bash
+cd multiplayer-tank
+bash deploy/update.sh
+```
+
+脚本会自动执行：`git pull` → `pnpm install` → 构建 shared/server/client → `pm2 restart`（首次会 `pm2 start` + `pm2 save`）。
+
+**方式二：手动逐步执行**
+
 ```bash
 cd multiplayer-tank
 git pull

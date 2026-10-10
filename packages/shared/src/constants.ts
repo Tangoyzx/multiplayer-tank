@@ -26,9 +26,12 @@ export const TERRAIN = {
 } as const;
 
 export const PHYSICS = {
-  G: 180, // 重力加速度（逻辑 px/s^2），校准为使力度 100/45° 射程 ≈ 全场宽
+  G: 180, // 重力加速度（逻辑 px/s^2）
   DT: 1 / 120, // 弹道固定时间步长
-  POWER_SCALE: 6.5, // 力度 → 初速度 换算
+  // 力度 → 初速度 换算。
+  // 标定：中等力度坦克（战马，满力 80）在 45° 最佳射角的射程 ≈ 1680（约 70% 地图宽 2400）。
+  // 推导：range = (power*POWER_SCALE)^2 / G → POWER_SCALE = sqrt(1680*180)/80 ≈ 6.874。
+  POWER_SCALE: 6.875,
   MAX_STEPS: 2400, // 弹道硬截断步数
   SAMPLE_EVERY: 4, // 每 N 步采样一个轨迹点
 } as const;

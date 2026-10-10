@@ -79,7 +79,7 @@ console.log("=== ballistics ===");
   eq(rLow.kind, "terrain", "低角度撞地");
   const rUp = simulate(flat, { x: 1000, y: 200 }, 85, 80, 1, [], 0);
   eq(rUp.kind, "terrain", "高抛回落撞地");
-  const rTank = simulate(flat, { x: 300, y: 560 }, 20, 90, 1, [
+  const rTank = simulate(flat, { x: 300, y: 560 }, 20, 82, 1, [
     { x: 300, y: 560, halfW: 20, halfH: 20 },
     { x: 1500, y: 560, halfW: 20, halfH: 20 },
   ], 0);

@@ -327,7 +327,7 @@ export class BattleScene implements Scene {
       }
       const me = this.tanks[session.slot];
       const p = this.screenToWorld(e.clientX, e.clientY);
-      // 只有按在坦克附近（半径 60px 屏幕距离）才开始拖拽
+      // 只有按在坦克附近（世界距离 60 单位，约 3 个车身宽）才开始拖拽
       const distToTank = Math.hypot(p.x - me.x, p.y - me.y);
       if (distToTank <= 60) {
         this.dragging = true;
@@ -376,12 +376,9 @@ export class BattleScene implements Scene {
       const [alo, ahi] = def ? def.angle : [0, 89];
       const [plo, phi] = def ? def.power : [20, 100];
       this.aimAngle = clamp(Math.round((angleRad * 180) / Math.PI), alo, ahi);
-      // 力度：用【屏幕像素距离】（玩家实际拖了多远），实时换算坦克当前屏幕位置
-      const tankScreen = this.worldToScreen(anchorWX, anchorWY);
-      const sdx = tankScreen.x - e.clientX;
-      const sdy = tankScreen.y - e.clientY;
-      const screenDist = Math.hypot(sdx, sdy);
-      this.aimPower = clamp(Math.round(screenDist / 2), plo, phi);
+      // 力度：完全用【世界坐标】拉弓距离（dist），与镜头缩放无关。
+      // 标定：拉弓 1500 世界单位 ≈ 满力度 100（约一个坦克间距的量级），映射到各坦克的 power 范围。
+      this.aimPower = clamp(Math.round(dist / 15), plo, phi);
       this.updateTurretFromAim();
       this.updateAimHud();
       // 详细日志
@@ -638,10 +635,24 @@ export class BattleScene implements Scene {
     // 基础缩放：屏幕越窄，zoom 越小（看到更多）
     const baseZoom = clamp(viewW / 1200, 0.4, 1.2);
 
-    // 镜头目标：炮弹 > 拖拽/常规（都锁定当前回合坦克，保证拖拽锚点稳定不漂移）
+    // 镜头目标：炮弹 > 拖拽瞄准（拉远看双方，留边距）> 当前回合坦克
     if (this.shell) {
       this.renderer.setZoomTarget(baseZoom);
       this.renderer.setCameraTarget(this.shell.x, this.shell.y - 100);
+    } else if (this.dragging) {
+      // 拖拽时：拉远 zoom，让双方坦克都落在屏幕 10%~90% 区间（留边距）
+      // 锚点已是世界坐标，镜头缩放/移动不影响拉弓方向计算，可放心拉远
+      const me = this.tanks[session.slot];
+      const enemy = this.tanks[session.slot === 0 ? 1 : 0];
+      const x0 = Math.min(me.x, enemy.x);
+      const x1 = Math.max(me.x, enemy.x);
+      const gap = Math.max(80, x1 - x0); // 至少 80，避免距离过近时 zoom 爆炸
+      // 让两车占屏幕中间 80%（10%~90%），且不超过 baseZoom 的 2 倍（避免过糊）
+      const fitZoom = clamp((viewW * 0.8) / gap, baseZoom * 0.5, baseZoom * 2.0);
+      const targetX = (x0 + x1) / 2;
+      const targetY = Math.min(me.y, enemy.y) - 60;
+      this.renderer.setZoomTarget(fitZoom);
+      this.renderer.setCameraTarget(targetX, targetY);
     } else {
       this.renderer.setZoomTarget(baseZoom);
       const focus = this.tanks[this.currentSlot];

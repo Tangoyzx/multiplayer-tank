@@ -57,16 +57,16 @@ function serveStatic(req: http.IncomingMessage, res: http.ServerResponse): void 
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
+    // 缓存策略：
+    // 客户端是多模块 ESM（main.js 相对 import 了 version.js / scenes/*.js 等子模块），
+    // 这些子模块 URL 不带版本指纹。若给 .js 设 immutable 长缓存，子模块会永久命中旧缓存，
+    // 导致代码更新后浏览器仍跑旧逻辑（之前版本号一直停在旧值就是这个原因）。
+    // 因此所有资源一律 no-cache：每次刷新都向服务器校验（ETag/304 仍可省流量），
+    // 彻底避免「子模块 URL 无指纹 + immutable 长缓存」导致的陈旧代码。
     const headers: Record<string, string> = {
       "Content-Type": MIME[ext] ?? "application/octet-stream",
+      "Cache-Control": "no-cache, must-revalidate",
     };
-    // HTML 完全不缓存（no-store）：确保刷新永远拿到最新入口，从而加载最新版本的 JS/CSS
-    if (ext === ".html") {
-      headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
-    } else {
-      // 带版本指纹（?v=版本号）的静态资源：URL 唯一，可长缓存
-      headers["Cache-Control"] = "public, max-age=31536000, immutable";
-    }
     res.writeHead(200, headers);
     res.end(data);
   });

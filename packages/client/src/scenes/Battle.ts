@@ -333,7 +333,17 @@ export class BattleScene implements Scene {
         // 锁定坦克中心屏幕坐标（拖拽期间镜头会动，必须锁定锚点）
         anchorScreen = this.worldToScreen(me.x, me.y);
         this.dragIndicator = { toX: p.x, toY: p.y };
-        log.info("[drag] 拖拽开始, 锚点屏幕=", anchorScreen.x.toFixed(1), anchorScreen.y.toFixed(1), "初始facing=", this.aimFacing);
+        const cam = this.renderer.getCamera();
+        log.info(
+          "[drag] 按下:",
+          "手指屏幕=(", e.clientX.toFixed(0), ",", e.clientY.toFixed(0), ")",
+          "坦克屏幕=(", anchorScreen.x.toFixed(0), ",", anchorScreen.y.toFixed(0), ")",
+          "手指世界=(", p.x.toFixed(0), ",", p.y.toFixed(0), ")",
+          "坦克世界=(", me.x.toFixed(0), ",", me.y.toFixed(0), ")",
+          "镜头=(", cam.x.toFixed(0), ",", cam.y.toFixed(0), ") zoom=", cam.zoom.toFixed(2),
+          "distToTank=", distToTank.toFixed(1),
+          "初始facing=", this.aimFacing,
+        );
         e.preventDefault();
       } else {
         log.info("[drag] 距离坦克过远，未开始拖拽");
@@ -368,14 +378,18 @@ export class BattleScene implements Scene {
       this.aimPower = clamp(Math.round(dist / 2), plo, phi);
       this.updateTurretFromAim();
       this.updateAimHud();
-      // 炮管朝向详细日志：对比 aimFacing / 同步后的 tanks[slot].facing / turretAngle / 指向描述
-      const dirDesc = (this.aimFacing === 1 ? "右" : "左") + (this.aimAngle >= 45 ? "上(高抛)" : this.aimAngle >= 20 ? "上方" : "方(平射)");
+      // 详细日志：手指/坦克 的屏幕坐标 + 世界坐标，以及炮管朝向
+      const cam = this.renderer.getCamera();
       log.info(
-        "[drag] move: dx=", dx.toFixed(1), "dy=", dy.toFixed(1),
-        "aimFacing=", this.aimFacing,
-        "tankFacing=", this.tanks[session.slot].facing,
+        "[drag] move:",
+        "手指屏幕=(", e.clientX.toFixed(0), ",", e.clientY.toFixed(0), ")",
+        "坦克屏幕=(", anchorScreen.x.toFixed(0), ",", anchorScreen.y.toFixed(0), ")",
+        "手指世界=(", cur.x.toFixed(0), ",", cur.y.toFixed(0), ")",
+        "坦克世界=(", me.x.toFixed(0), ",", me.y.toFixed(0), ")",
+        "镜头=(", cam.x.toFixed(0), ",", cam.y.toFixed(0), ") zoom=", cam.zoom.toFixed(2),
+        "dx=", dx.toFixed(1), "dy=", dy.toFixed(1),
+        "aimFacing=", this.aimFacing, "tankFacing=", this.tanks[session.slot].facing,
         "turretAngle=", (this.turretAngles[session.slot] * 180 / Math.PI).toFixed(1),
-        "指向=", dirDesc,
         "angle=", this.aimAngle, "power=", this.aimPower,
       );
     });

@@ -432,6 +432,8 @@ export class BattleScene implements Scene {
   private updateTurretFromAim(): void {
     const angleRad = (this.aimAngle * Math.PI) / 180;
     this.turretAngles[session.slot] = -angleRad * (this.aimFacing === 1 ? 1 : -1);
+    // 同步坦克朝向到渲染状态（炮管/车身跟随拖拽转身）
+    this.tanks[session.slot].facing = this.aimFacing;
   }
 
   // 根据我方坦克的角度/力度范围，clamp 当前瞄准值到合法区间

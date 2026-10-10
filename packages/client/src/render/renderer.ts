@@ -150,6 +150,20 @@ export class Renderer {
     // 车体细节
     ctx.fillStyle = "rgba(0,0,0,0.2)";
     ctx.fillRect(-20, -14, 40, 4);
+    // 车头方向标记（朝向 facing 一侧的楔形），让转身可视化
+    ctx.fillStyle = shade(tank.color, -35);
+    ctx.beginPath();
+    if (tank.facing === 1) {
+      ctx.moveTo(20, -14);
+      ctx.lineTo(34, 0);
+      ctx.lineTo(20, 14);
+    } else {
+      ctx.moveTo(-20, -14);
+      ctx.lineTo(-34, 0);
+      ctx.lineTo(-20, 14);
+    }
+    ctx.closePath();
+    ctx.fill();
 
     // 炮塔
     ctx.save();

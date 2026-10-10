@@ -166,6 +166,7 @@ export interface FireResultMsg {
   slot: Slot;
   angle: number;
   power: number;
+  facing: 1 | -1;
   trajectory: Point[];
   impact: Point;
   hitSlot?: Slot;
@@ -231,7 +232,7 @@ export type ClientMessage =
   | { t: typeof MsgType.SELECT_TANK; tankId: string }
   | { t: typeof MsgType.READY }
   | { t: typeof MsgType.MOVE; turnId: number; dir: -1 | 1; steps: number }
-  | { t: typeof MsgType.FIRE; turnId: number; angle: number; power: number }
+  | { t: typeof MsgType.FIRE; turnId: number; angle: number; power: number; facing: 1 | -1 }
   | { t: typeof MsgType.END_TURN; turnId: number }
   | { t: typeof MsgType.ANIM_DONE; turnId: number }
   | { t: typeof MsgType.REMATCH }

@@ -265,7 +265,7 @@ function handleMessage(player: Player, msg: ClientMessage): void {
     }
     case MsgType.FIRE: {
       const room = manager.findRoomOf(player);
-      room?.fire(player, msg.turnId, msg.angle, msg.power);
+      room?.fire(player, msg.turnId, msg.angle, msg.power, msg.facing);
       break;
     }
     case MsgType.END_TURN: {

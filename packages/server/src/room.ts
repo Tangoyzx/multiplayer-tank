@@ -384,7 +384,7 @@ export class Room {
 
   // ---- 开火 ----
 
-  fire(p: Player, turnId: number, angle: number, power: number): void {
+  fire(p: Player, turnId: number, angle: number, power: number, facing: 1 | -1): void {
     if (this.phase !== "TURN") return;
     if (this.currentSlot !== this.slotOf(p)) return;
     if (turnId !== this.turnId) return;
@@ -399,7 +399,9 @@ export class Room {
       this.resolveTimer = null;
     }
 
-    const result = this.resolveFire(angle, power);
+    // 弹弓模型：发射朝向由拖拽动态决定，更新坦克朝向
+    s.facing = facing;
+    const result = this.resolveFire(angle, power, facing);
     this.phase = "RESOLVING";
     this.broadcast({
       t: MsgType.FIRE_RESULT,
@@ -407,6 +409,7 @@ export class Room {
       slot: this.currentSlot,
       angle,
       power,
+      facing,
       trajectory: result.trajectory,
       impact: result.impact,
       hitSlot: result.hitSlot,
@@ -419,14 +422,14 @@ export class Room {
     this.afterFire();
   }
 
-  private resolveFire(angle: number, power: number): FireResultInternal {
+  private resolveFire(angle: number, power: number, facing: 1 | -1): FireResultInternal {
     const slot = this.currentSlot;
     const s = this.slots[slot];
     const def = getTank(s.tankId)!;
 
-    // 炮口位置
+    // 炮口位置（用动态 facing）
     const start: Point = {
-      x: s.x + s.facing * (TANK_HALF_W - 4),
+      x: s.x + facing * (TANK_HALF_W - 4),
       y: s.y - 6,
     };
 
@@ -437,7 +440,7 @@ export class Room {
       halfH: TANK_HALF_H,
     }));
 
-    const result = simulate(this.heights, start, angle, power, s.facing, tanks, slot);
+    const result = simulate(this.heights, start, angle, power, facing, tanks, slot);
 
     let impact: Point;
     let hitSlot: Slot | undefined;

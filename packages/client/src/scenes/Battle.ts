@@ -53,6 +53,7 @@ export class BattleScene implements Scene {
   // 输入状态
   private aimAngle = 45;
   private aimPower = 60;
+  private aimFacing: 1 | -1 = 1; // 弹弓动态朝向（拖拽时根据手指在炮口左/右决定）
   private turretAngles: [number, number] = [0, 0];
 
   // 炮弹/演出
@@ -198,6 +199,8 @@ export class BattleScene implements Scene {
     this.deadline = msg.turnDeadline;
     // 恢复「是否我的回合」状态
     this.myTurn = msg.currentSlot === session.slot;
+    // 同步瞄准朝向
+    this.aimFacing = this.tanks[session.slot].facing;
     this.updateHud();
   }
 
@@ -308,13 +311,13 @@ export class BattleScene implements Scene {
     fireBtn.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       if (this.myTurn && !this.animating) {
-        net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower });
+        net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower, facing: this.aimFacing });
       }
     });
 
-    // 弹弓式拖拽发射：锚点 = 炮口，发射方向 = 「手指 → 炮口」的延长线
-    // 力度 = 手指到炮口的距离；与 facing 无关（方向由手指相对炮口的位置自然决定）
-    let muzzleScreen = { x: 0, y: 0 }; // 按下时锁定的炮口屏幕坐标
+    // 弹弓式拖拽发射：锚点 = 坦克中心，发射方向 = 「手指 → 坦克」的延长线
+    // facing 动态：手指在坦克左边 → 发射朝右；手指在右边 → 发射朝左
+    let anchorScreen = { x: 0, y: 0 }; // 按下时锁定的坦克中心屏幕坐标
 
     this.canvas.addEventListener("pointerdown", (e) => {
       if (!this.myTurn || this.animating) {
@@ -327,12 +330,10 @@ export class BattleScene implements Scene {
       const distToTank = Math.hypot(p.x - me.x, p.y - me.y);
       if (distToTank <= 60) {
         this.dragging = true;
-        // 锁定炮口屏幕坐标（拖拽期间镜头会动，必须锁定锚点）
-        const muzzleWX = me.x + me.facing * (TANK_HALF_W - 4);
-        const muzzleWY = me.y - 6;
-        muzzleScreen = this.worldToScreen(muzzleWX, muzzleWY);
+        // 锁定坦克中心屏幕坐标（拖拽期间镜头会动，必须锁定锚点）
+        anchorScreen = this.worldToScreen(me.x, me.y);
         this.dragIndicator = { toX: p.x, toY: p.y };
-        log.info("[drag] 拖拽开始, 炮口屏幕=", muzzleScreen.x.toFixed(1), muzzleScreen.y.toFixed(1), "facing=", me.facing);
+        log.info("[drag] 拖拽开始, 锚点屏幕=", anchorScreen.x.toFixed(1), anchorScreen.y.toFixed(1), "初始facing=", this.aimFacing);
         e.preventDefault();
       } else {
         log.info("[drag] 距离坦克过远，未开始拖拽");
@@ -342,32 +343,30 @@ export class BattleScene implements Scene {
     this.canvas.addEventListener("pointermove", (e) => {
       if (!this.dragging) return;
       const me = this.tanks[session.slot];
-      // 发射方向 = 炮口 - 手指（弹弓延长线）
-      const dx = muzzleScreen.x - e.clientX;
-      const dy = muzzleScreen.y - e.clientY;
+      // 拉弓向量：从手指指向锚点（坦克中心）
+      const dx = anchorScreen.x - e.clientX;
+      const dy = anchorScreen.y - e.clientY;
       const dist = Math.hypot(dx, dy);
       // 更新指示线（世界坐标，供渲染）
       const cur = this.screenToWorld(e.clientX, e.clientY);
       this.dragIndicator = { toX: cur.x, toY: cur.y };
-      // 水平分量需朝 facing 方向（dx*facing >= 0）；dx<0 表示手指拖到了炮口前方（错误一侧）
-      const hDir = dx * me.facing;
-      if (hDir < 0) {
-        log.info("[drag] 手指在错误一侧, dx=", dx.toFixed(1), "facing=", me.facing);
-        return;
-      }
-      // 仰角：向上分量（屏幕 -dy）比水平分量；dx≈0 时（正下方/正上方）取最大仰角
+      // 动态 facing：手指在坦克左边 → 发射朝右(facing=1)；右边 → 朝左(facing=-1)
+      const newFacing: 1 | -1 = dx >= 0 ? 1 : -1;
+      this.aimFacing = newFacing;
+      // 仰角：向上分量（屏幕 -dy）比水平距离（绝对值）
+      const absDx = Math.abs(dx);
       let angleRad: number;
-      if (Math.abs(hDir) < 1) {
-        angleRad = Math.PI / 2; // 正上方 → 89°（最大仰角）
+      if (absDx < 1) {
+        angleRad = Math.PI / 2; // 正上方/正下方 → 最大仰角
       } else {
-        angleRad = Math.atan2(-dy, hDir);
+        angleRad = Math.atan2(-dy, absDx);
       }
       const def = TANKS.find((t) => t.id === me.tankId);
       const [alo, ahi] = def ? def.angle : [0, 89];
       const [plo, phi] = def ? def.power : [20, 100];
       this.aimAngle = clamp(Math.round((angleRad * 180) / Math.PI), alo, ahi);
       this.aimPower = clamp(Math.round(dist / 2), plo, phi);
-      log.info("[drag] move: dx=", dx.toFixed(1), "dy=", dy.toFixed(1), "hDir=", hDir.toFixed(1), "angle=", this.aimAngle, "power=", this.aimPower);
+      log.info("[drag] move: dx=", dx.toFixed(1), "dy=", dy.toFixed(1), "facing=", this.aimFacing, "angle=", this.aimAngle, "power=", this.aimPower);
       this.updateTurretFromAim();
       this.updateAimHud();
     });
@@ -376,14 +375,14 @@ export class BattleScene implements Scene {
       if (!this.dragging) return;
       this.dragging = false;
       // 松手发射：拉拽距离达到阈值才发射（避免误触）
-      const dx = muzzleScreen.x - e.clientX;
-      const dy = muzzleScreen.y - e.clientY;
+      const dx = anchorScreen.x - e.clientX;
+      const dy = anchorScreen.y - e.clientY;
       const dist = Math.hypot(dx, dy);
       this.dragIndicator = null;
-      log.info("[drag] up: dist=", dist.toFixed(1), "myTurn=", this.myTurn, "animating=", this.animating);
+      log.info("[drag] up: dist=", dist.toFixed(1), "facing=", this.aimFacing, "myTurn=", this.myTurn, "animating=", this.animating);
       if (dist >= 20 && this.myTurn && !this.animating) {
-        log.info("[drag] 发射! angle=", this.aimAngle, "power=", this.aimPower);
-        net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower });
+        log.info("[drag] 发射! facing=", this.aimFacing, "angle=", this.aimAngle, "power=", this.aimPower);
+        net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower, facing: this.aimFacing });
       }
     });
 
@@ -416,7 +415,7 @@ export class BattleScene implements Scene {
       }
       case " ":
         e.preventDefault();
-        net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower });
+        net.send({ t: MsgType.FIRE, turnId: this.turnId, angle: this.aimAngle, power: this.aimPower, facing: this.aimFacing });
         break;
       case "Enter":
         net.send({ t: MsgType.END_TURN, turnId: this.turnId });
@@ -429,11 +428,10 @@ export class BattleScene implements Scene {
     aimEl.textContent = `角度 ${this.aimAngle}°  力度 ${this.aimPower}`;
   }
 
-  // 根据当前 aimAngle 更新炮管角度（含朝向）
+  // 根据当前 aimAngle 更新炮管角度（含动态朝向）
   private updateTurretFromAim(): void {
-    const me = this.tanks[session.slot];
     const angleRad = (this.aimAngle * Math.PI) / 180;
-    this.turretAngles[session.slot] = -angleRad * (me.facing === 1 ? 1 : -1);
+    this.turretAngles[session.slot] = -angleRad * (this.aimFacing === 1 ? 1 : -1);
   }
 
   // 根据我方坦克的角度/力度范围，clamp 当前瞄准值到合法区间
@@ -444,6 +442,8 @@ export class BattleScene implements Scene {
       this.aimAngle = clamp(this.aimAngle, def.angle[0], def.angle[1]);
       this.aimPower = clamp(this.aimPower, def.power[0], def.power[1]);
     }
+    // 回合开始/重连时，瞄准朝向同步为坦克当前朝向
+    this.aimFacing = me.facing;
     this.updateTurretFromAim();
     this.updateAimHud();
   }
@@ -460,9 +460,9 @@ export class BattleScene implements Scene {
       this.aimTrajectory = null;
       return;
     }
-    // 炮口位置：与服务端 resolveFire 完全一致
+    // 炮口位置：用动态 aimFacing，与服务端 resolveFire 完全一致
     const start: Point = {
-      x: me.x + me.facing * (TANK_HALF_W - 4),
+      x: me.x + this.aimFacing * (TANK_HALF_W - 4),
       y: me.y - 6,
     };
     // 双方坦克包围盒（用于命中判定）
@@ -475,7 +475,7 @@ export class BattleScene implements Scene {
       start,
       this.aimAngle,
       this.aimPower,
-      me.facing,
+      this.aimFacing,
       tanks,
       session.slot,
     );
@@ -531,9 +531,12 @@ export class BattleScene implements Scene {
     this.updateHud();
     const slot = msg.slot;
     const traj = msg.trajectory;
-    // 炮管角度需考虑朝向（与 updateTurretFromAim 一致）
+    // 服务端下发了本次发射的实际朝向，同步到坦克状态
+    const facing = msg.facing;
+    this.tanks[slot].facing = facing;
+    if (slot === session.slot) this.aimFacing = facing;
+    // 炮管角度需考虑朝向
     const angleRad = (msg.angle * Math.PI) / 180;
-    const facing = this.tanks[slot].facing;
     this.turretAngles[slot] = -angleRad * (facing === 1 ? 1 : -1);
 
     // 播放炮弹飞行

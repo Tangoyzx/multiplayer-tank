@@ -366,9 +366,18 @@ export class BattleScene implements Scene {
       const [plo, phi] = def ? def.power : [20, 100];
       this.aimAngle = clamp(Math.round((angleRad * 180) / Math.PI), alo, ahi);
       this.aimPower = clamp(Math.round(dist / 2), plo, phi);
-      log.info("[drag] move: dx=", dx.toFixed(1), "dy=", dy.toFixed(1), "facing=", this.aimFacing, "angle=", this.aimAngle, "power=", this.aimPower);
       this.updateTurretFromAim();
       this.updateAimHud();
+      // 炮管朝向详细日志：对比 aimFacing / 同步后的 tanks[slot].facing / turretAngle / 指向描述
+      const dirDesc = (this.aimFacing === 1 ? "右" : "左") + (this.aimAngle >= 45 ? "上(高抛)" : this.aimAngle >= 20 ? "上方" : "方(平射)");
+      log.info(
+        "[drag] move: dx=", dx.toFixed(1), "dy=", dy.toFixed(1),
+        "aimFacing=", this.aimFacing,
+        "tankFacing=", this.tanks[session.slot].facing,
+        "turretAngle=", (this.turretAngles[session.slot] * 180 / Math.PI).toFixed(1),
+        "指向=", dirDesc,
+        "angle=", this.aimAngle, "power=", this.aimPower,
+      );
     });
 
     this.canvas.addEventListener("pointerup", (e) => {
